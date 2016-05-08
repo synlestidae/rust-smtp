@@ -115,7 +115,7 @@ fn read_command(io: &mut Read) -> Result<Command> {
     }
 }
 
-fn handle_connection(mut conn: TcpStream) {
+fn handle_connection<C : Read + Write>(mut conn: C) {
     debug!("Got connection");
 
     let server_hostname = "mail.ntecs.de";
