@@ -1,8 +1,15 @@
 [package]
-
 name = "rust-smtp"
 version = "0.0.1"
 authors = ["Michael Neumann <mneumann@ntecs.de>"]
+
+[lib]
+name="SMTP"
+path="src/lib.rs"
+
+[[bin]]
+name="smtp"
+path="src/main.rs"
 
 [dependencies]
 log = "0.3.6"

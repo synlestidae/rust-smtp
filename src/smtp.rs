@@ -1,12 +1,6 @@
-#![warn(unused_must_use)]
-
 #[macro_use]
-extern crate log;
-
+use log;
 use std::io::{Read, Write, Result, Error, ErrorKind};
-use std::net::{TcpListener, TcpStream};
-use std::thread::spawn;
-use log::{LogLevel, LogLevelFilter, LogRecord, LogMetadata};
 
 fn read_ascii_char(io: &mut Read) -> Result<u8> {
     let buf = &mut vec![0; 1];
@@ -115,9 +109,8 @@ fn read_command(io: &mut Read) -> Result<Command> {
     }
 }
 
-fn handle_connection<C : Read + Write>(mut conn: C) {
+pub fn handle_connection<C : Read + Write>(mut conn: C) {
     debug!("Got connection");
-
     let server_hostname = "mail.ntecs.de";
     let server_agent = "rust-smtp";
 
@@ -194,41 +187,5 @@ fn handle_connection<C : Read + Write>(mut conn: C) {
             return;
         }
 
-    }
-}
-
-fn main() {
-    log::set_logger(|max_log_level| {
-        max_log_level.set(LogLevelFilter::Info);
-        Box::new(SimpleLogger)
-    })
-        .unwrap();
-
-    match TcpListener::bind(("127.0.0.1", 2525)) {
-        Ok(listener) => {
-            for acceptor in listener.incoming() {
-                match acceptor {
-                    Ok(conn) => {
-                        spawn(|| handle_connection(conn));
-                    }
-                    _ => error!("Could not accept connection."),
-                }
-            }
-        }
-        _ => panic!(),
-    }
-}
-
-struct SimpleLogger;
-
-impl log::Log for SimpleLogger {
-    fn enabled(&self, metadata: &LogMetadata) -> bool {
-        metadata.level() <= LogLevel::Info
-    }
-
-    fn log(&self, record: &LogRecord) {
-        if self.enabled(record.metadata()) {
-            println!("{} - {}", record.level(), record.args());
-        }
     }
 }

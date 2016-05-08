@@ -1,3 +1,9 @@
+#[macro_use]
+extern crate log;
+
+mod main;
+mod smtp;
+mod parser;
 
 fn ascii_upcase(ascii: u8) -> u8 {
     if ascii >= b'a' && ascii <= b'z' {
