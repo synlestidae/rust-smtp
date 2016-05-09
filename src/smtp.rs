@@ -109,7 +109,7 @@ fn read_command(io: &mut Read) -> Result<Command> {
     }
 }
 
-pub fn handle_connection<C : Read + Write>(mut conn: C) {
+pub fn handle_connection<C: Read + Write>(mut conn: C) {
     debug!("Got connection");
     let server_hostname = "mail.ntecs.de";
     let server_agent = "rust-smtp";
