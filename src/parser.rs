@@ -171,54 +171,37 @@ fn parse_command<'a>(line: &'a [u8]) -> Result<SmtpCommand<'a>, ParseError> {
     }
 }
 
-macro_rules! assert_match(
-    ($given:expr , $pattern:pat) => ({
-        match $given {
-          $pattern => {}
-          _ => {
-             panic!("assertion failed: `value {:?} does not match pattern`", $given);
-          }
-        }
-    })
-);
-
-macro_rules! test_parse_command (
-  ($str:expr, $pat:pat) => (
-    println!("Parsing `{}`", $str);
-    assert_match!(parse_command(&($str.to_string().into_bytes())), $pat);
-// match $str.to_string().to_bytes() {
-//  cmd => assert_match!(parse_command(cmd), $pat)
-// }
-  )
-);
+fn test_parse_command(input : &str, expected: Result<SmtpCommand, ParseError>) {
+  assert_eq!(expected, parse_command(&input.to_string().into_bytes()));
+}
 
 #[test]
 fn test_commands() {
     // test_parse_command!("", Err(InvalidLineEnding));
-    test_parse_command!("\r", Err(ParseError::InvalidLineEnding));
-    test_parse_command!("\n", Err(ParseError::InvalidLineEnding));
-    test_parse_command!("\n\r", Err(ParseError::InvalidLineEnding));
-    test_parse_command!("MAIL FROM:<mneumann@ntecs.de>",
+    test_parse_command("\r", Err(ParseError::InvalidLineEnding));
+    test_parse_command("\n", Err(ParseError::InvalidLineEnding));
+    test_parse_command("\n\r", Err(ParseError::InvalidLineEnding));
+    test_parse_command("MAIL FROM:<mneumann@ntecs.de>",
                         Err(ParseError::InvalidLineEnding));
-    test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\r",
+    test_parse_command("MAIL FROM:<mneumann@ntecs.de>\r",
                         Err(ParseError::InvalidLineEnding));
-    test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\n",
+    test_parse_command("MAIL FROM:<mneumann@ntecs.de>\n",
                         Err(ParseError::InvalidLineEnding));
-    test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\n\r",
+    test_parse_command("MAIL FROM:<mneumann@ntecs.de>\n\r",
                         Err(ParseError::InvalidLineEnding));
 
-    test_parse_command!("MAIL FROM:<mneumann@ntecs.de blah\r\n",
+    test_parse_command("MAIL FROM:<mneumann@ntecs.de blah\r\n",
                         Err(ParseError::SyntaxError("Invalid MAIL command: Missing >")));
 
-    test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\r\n",
+    test_parse_command("MAIL FROM:<mneumann@ntecs.de>\r\n",
                         Ok(SmtpCommand::MAIL("mneumann@ntecs.de")));
-    test_parse_command!("MAIL FROM:mneumann@ntecs.de\r\n",
+    test_parse_command("MAIL FROM:mneumann@ntecs.de\r\n",
                         Ok(SmtpCommand::MAIL("mneumann@ntecs.de")));
 
 
-    test_parse_command!("DATA\r\n", Ok(SmtpCommand::DATA));
-    test_parse_command!("data\r\n", Ok(SmtpCommand::DATA));
-    test_parse_command!("data test\r\n",
+    test_parse_command("DATA\r\n", Ok(SmtpCommand::DATA));
+    test_parse_command("data\r\n", Ok(SmtpCommand::DATA));
+    test_parse_command("data test\r\n",
                         Err(ParseError::SyntaxError("Invalid DATA command")));
 }
 
