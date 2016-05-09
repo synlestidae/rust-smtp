@@ -1,8 +1,7 @@
-#[macro_use]
-use log;
-use std::io;
 use std::cmp::min;
 use std;
+
+#[allow(dead_code)]
 #[derive(Eq, PartialEq, Debug)]
 enum SmtpCommand<'a> {
     MAIL(&'a str),
@@ -10,6 +9,7 @@ enum SmtpCommand<'a> {
     DATA,
 }
 
+#[allow(dead_code)]
 #[derive(Eq, PartialEq, Debug)]
 enum ParseError {
     SyntaxError(&'static str),
@@ -39,6 +39,7 @@ struct SliceScanner<'a, T: 'a> {
     data: &'a [T],
 }
 
+#[allow(dead_code)]
 impl<'a, T> SliceScanner<'a, T> {
     fn new(data: &'a [T]) -> SliceScanner<'a, T> {
         SliceScanner { data: data }
@@ -224,5 +225,5 @@ fn test_commands() {
 fn main() {
     let buf = b"MAIL FROM:<mneumann@ntecs.de>\r\n";
     let cmd = parse_command(buf);
-    // println!("{}", cmd);
+    println!("{:?}", cmd);
 }

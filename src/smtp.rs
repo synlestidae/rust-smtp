@@ -1,5 +1,3 @@
-#[macro_use]
-use log;
 use std::io::{Read, Write, Result, Error, ErrorKind};
 
 fn read_ascii_char(io: &mut Read) -> Result<u8> {

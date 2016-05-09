@@ -1,7 +1,7 @@
 extern crate nibbler;
 extern crate log;
 
-use std::net::{TcpListener, TcpStream};
+use std::net::{TcpListener};
 // use log::{LogLevel, LogLevelFilter, LogRecord, LogMetadata};
 use std::thread::spawn;
 use nibbler::smtp;
