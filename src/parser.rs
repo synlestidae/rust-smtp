@@ -1,15 +1,16 @@
 #[macro_use]
 use log;
-use std::io::{Result};
-
-#[derive(Eq, Debug)]
+use std::io;
+use std::cmp::{min};
+use std;
+#[derive(Eq, PartialEq, Debug)]
 enum SmtpCommand<'a> {
   MAIL(&'a str),
   RCPT(&'a str),
   DATA,
 }
 
-#[derive(Eq, Debug)]
+#[derive(Eq, PartialEq, Debug)]
 enum ParseError {
   SyntaxError(&'static str),
   InvalidLineEnding,
@@ -18,14 +19,25 @@ enum ParseError {
 
 fn ascii_eq_ignore_case(a: &[u8], b: &[u8]) -> bool {
   if a.len() == b.len() {
-    a.to_ascii().eq_ignore_case(b.to_ascii())
+    for (i, &a_byte) in a.iter().enumerate() {
+        let b_byte = b[i];
+        if a_byte < 127 && b_byte < 127 {
+            if a_byte != b_byte {
+              return false;
+            }
+        }
+        else {
+            return false;
+        }
+    }
+    true
   }
   else {
     false
   }
 }
 
-struct SliceScanner<'a, T> {
+struct SliceScanner<'a, T: 'a> {
   data: &'a[T]
 }
 
@@ -42,7 +54,7 @@ impl<'a, T> SliceScanner<'a, T> {
   /// Remove `n` (but no more than len()) items from the back and return them.
   fn pop_back(&mut self, n: usize) -> &'a[T] {
     if n > self.len() { debug!("pop_back(): n > len"); }
-    let n = std::cmp::min(n, self.len());
+    let n = min(n, self.len());
     let (front, back) = self.split_at(self.len() - n);
     self.data = front;
     return back;
@@ -51,7 +63,7 @@ impl<'a, T> SliceScanner<'a, T> {
   /// Remove `n` (but no more than len()) items from the front and return them. 
   fn pop_front(&mut self, n: usize) -> &'a[T] {
     if n > self.len() { debug!("pop_front(): n > len"); }
-    let n = std::cmp::min(n, self.len());
+    let n = min(n, self.len());
 
     let (front, back) = self.split_at(n);
     self.data = back;
@@ -61,14 +73,13 @@ impl<'a, T> SliceScanner<'a, T> {
   /// Same as pop_front, but does not modify the underlying SliceScanner.
   fn ref_front(&self, n: usize) -> &'a[T] {
     if n > self.len() { debug!("ref_front(): n > len"); }
-    let n = std::cmp::min(n, self.len());
+    let n = min(n, self.len());
 
     let (front, _) = self.split_at(n);
     return front;
   }
 
-  fn count_while<T>(&self, cond: C) -> usize 
-  where C: Fn(&T) -> bool {
+  fn count_while(&self, cond: fn(&T) -> bool) -> usize {
     let mut cnt = 0;
     for b in self.data.iter() {
       if cond(b) {
@@ -80,16 +91,22 @@ impl<'a, T> SliceScanner<'a, T> {
     return cnt
   }
 
-  fn pop_while<T>(&mut self, cond: C) -> &'a[T] 
-  where C: Fn(&T) -> bool {
+  fn pop_while(&mut self, cond: fn(&T) -> bool) -> &'a[T]  {
     let cnt = self.count_while(cond);
     self.pop_front(cnt)
   }
 
   fn split_at(&self, pos: usize) -> (&'a[T], &'a[T]) {
     assert!(pos <= self.data.len());
-    (self.data.slice(0, pos), self.data.slice(pos, self.data.len()))
+    (&self.data[0..pos], &self.data[pos..self.data.len()])
   }
+}
+
+fn is_not_space_byte(b: &u8) -> bool { 
+    match b { &byte => byte == (' ' as u8) }
+} 
+fn is_not_less_than(b: &u8) -> bool { 
+    match b { &byte => byte != ('>' as u8) }
 }
 
 
@@ -103,7 +120,8 @@ fn parse_command<'a>(line: &'a[u8]) -> Result<SmtpCommand<'a>, ParseError>  {
 
     let cmd = line.pop_front(4);
     if ascii_eq_ignore_case(cmd, b"MAIL") {
-        if line.pop_while(|&b| b == (' ' as u8) ).len() == 0 {
+
+        if line.pop_while(is_not_space_byte).len() == 0 {
             return Err(ParseError::SyntaxError("Invalid MAIL command: Missing SP"));
         }
 
@@ -111,19 +129,19 @@ fn parse_command<'a>(line: &'a[u8]) -> Result<SmtpCommand<'a>, ParseError>  {
             let addr =
             if line.ref_front(1) == b"<" {
               let _ = line.pop_front(1);
-              let addr = line.pop_while(|&b| b != ('>' as u8));
+              let addr = line.pop_while(is_not_less_than);
               if line.pop_front(1) != b">" {
                 return Err(ParseError::SyntaxError("Invalid MAIL command: Missing >"));
               }
               addr
             }
             else {
-              line.pop_while(|&b| b != (' ' as u8))
+              line.pop_while(is_not_space_byte)
             };
 
             if line.is_empty() {
                 // XXX: Verify mail addr
-                Ok(SmtpCommand::MAIL(String::from_utf8(addr).unwrap()))
+                Ok(SmtpCommand::MAIL(std::str::from_utf8(addr).unwrap()))
             }
             else {
                 Err(ParseError::SyntaxError("Invalid MAIL command"))
@@ -160,36 +178,37 @@ macro_rules! assert_match(
 
 macro_rules! test_parse_command (
   ($str:expr, $pat:pat) => ( 
-    match $str.to_bytes() {
-      cmd => assert_match!(parse_command(cmd), $pat)
-    }
+    assert_match!(parse_command(& $str.bytes().collect::<Vec<u8>>()), $pat);
+    //match $str.to_string().to_bytes() {
+    //  cmd => assert_match!(parse_command(cmd), $pat)
+    //}
   )
 );
 
 #[test]
 fn test_commands() {
   //test_parse_command!("", Err(InvalidLineEnding));
-  test_parse_command!("\r", Err(InvalidLineEnding));
-  test_parse_command!("\n", Err(InvalidLineEnding));
-  test_parse_command!("\n\r", Err(InvalidLineEnding));
-  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>", Err(InvalidLineEnding));
-  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\r", Err(InvalidLineEnding));
-  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\n", Err(InvalidLineEnding));
-  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\n\r", Err(InvalidLineEnding));
+  test_parse_command!("\r", Err(ParseError::InvalidLineEnding));
+  test_parse_command!("\n", Err(ParseError::InvalidLineEnding));
+  test_parse_command!("\n\r", Err(ParseError::InvalidLineEnding));
+  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>", Err(ParseError::InvalidLineEnding));
+  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\r", Err(ParseError::InvalidLineEnding));
+  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\n", Err(ParseError::InvalidLineEnding));
+  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\n\r", Err(ParseError::InvalidLineEnding));
 
-  test_parse_command!("MAIL FROM:<mneumann@ntecs.de blah\r\n", Err(SyntaxError("Invalid MAIL command: Missing >")));
+  test_parse_command!("MAIL FROM:<mneumann@ntecs.de blah\r\n", Err(ParseError::SyntaxError("Invalid MAIL command: Missing >")));
                 
-  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\r\n", Ok(MAIL("mneumann@ntecs.de")));
-  test_parse_command!("MAIL FROM:mneumann@ntecs.de\r\n", Ok(MAIL("mneumann@ntecs.de")));
+  test_parse_command!("MAIL FROM:<mneumann@ntecs.de>\r\n", Ok(SmtpCommand::MAIL("mneumann@ntecs.de")));
+  test_parse_command!("MAIL FROM:mneumann@ntecs.de\r\n", Ok(SmtpCommand::MAIL("mneumann@ntecs.de")));
 
 
-  test_parse_command!("DATA\r\n", Ok(DATA));
-  test_parse_command!("data\r\n", Ok(DATA));
-  test_parse_command!("data test\r\n", Err(SyntaxError("Invalid DATA command")));
+  test_parse_command!("DATA\r\n", Ok(SmtpCommand::DATA));
+  test_parse_command!("data\r\n", Ok(SmtpCommand::DATA));
+  test_parse_command!("data test\r\n", Err(ParseError::SyntaxError("Invalid DATA command")));
 }
 
 fn main() {
   let buf = b"MAIL FROM:<mneumann@ntecs.de>\r\n";
   let cmd = parse_command(buf);
-  println!("{}", cmd);
+  //println!("{}", cmd);
 }

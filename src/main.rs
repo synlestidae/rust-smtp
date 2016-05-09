@@ -1,5 +1,6 @@
 use std::net::{TcpListener, TcpStream};
 use log::{LogLevel, LogLevelFilter, LogRecord, LogMetadata};    
+use log;
 use std::thread::spawn;
 use smtp;
 
