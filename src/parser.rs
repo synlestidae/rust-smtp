@@ -19,8 +19,18 @@ enum ParseError {
 
 fn ascii_eq_ignore_case(a: &[u8], b: &[u8]) -> bool {
     if a.len() == b.len() {
-        for (i, &a_byte) in a.iter().enumerate() {
-            let b_byte = b[i];
+        for (i, &a_b) in a.iter().enumerate() {
+            let mut a_byte = a_b;
+            let mut b_byte = b[i];
+
+            if 65 <= a_byte && a_byte <= 90 {
+                a_byte += 32;
+            } 
+
+            if 65 <= b_byte && b_byte <= 90 {
+                b_byte += 32;
+            } 
+
             if a_byte < 127 && b_byte < 127 {
                 if a_byte != b_byte {
                     return false;
@@ -114,9 +124,16 @@ impl<'a, T> SliceScanner<'a, T> {
 
 fn is_not_space_byte(b: &u8) -> bool {
     match b {
-        &byte => byte == (' ' as u8),
+        &byte => byte != 32,
     }
 }
+
+fn is_space_byte(b: &u8) -> bool {
+    match b {
+        &byte => byte == 32,
+    }
+}
+
 fn is_not_less_than(b: &u8) -> bool {
     match b {
         &byte => byte != ('>' as u8),
@@ -135,8 +152,8 @@ fn parse_command<'a>(line: &'a [u8]) -> Result<SmtpCommand<'a>, ParseError> {
     let cmd = line.pop_front(4);
     if ascii_eq_ignore_case(cmd, b"MAIL") {
 
-        if line.pop_while(is_not_space_byte).len() == 0 {
-            return Err(ParseError::SyntaxError("Invalid MAIL command: Missing SP"));
+        if line.pop_while(is_space_byte).len() == 0 {
+            return Err(ParseError::SyntaxError("Invalid MAIL command: Missing space after MAIL"));
         }
 
         if ascii_eq_ignore_case(line.pop_front(5), b"FROM:") {
@@ -155,7 +172,8 @@ fn parse_command<'a>(line: &'a [u8]) -> Result<SmtpCommand<'a>, ParseError> {
                 // XXX: Verify mail addr
                 Ok(SmtpCommand::MAIL(std::str::from_utf8(addr).unwrap()))
             } else {
-                Err(ParseError::SyntaxError("Invalid MAIL command"))
+                println!("There were trailing characters on mail command: `{}`", std::str::from_utf8(line.data).unwrap());
+                Err(ParseError::SyntaxError("Invalid trailing characters on MAIL command"))
             }
         } else {
             Err(ParseError::SyntaxError("Invalid MAIL command"))
