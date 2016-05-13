@@ -1,47 +1,79 @@
 use std::cmp::min;
 use std;
+use std::io::Read;
 
-#[allow(dead_code)]
-#[derive(Eq, PartialEq, Debug)]
-enum SmtpCommand<'a> {
-    MAIL(&'a str),
-    RCPT(&'a str),
-    DATA,
+use data::{Command, ParseError};
+
+fn ignore_ascii_case(byte_in: u8) -> u8 {
+    let mut byte = byte_in;
+    if 65 <= byte && byte <= 90 {
+        byte += 32;
+    } 
+    byte
 }
 
-#[allow(dead_code)]
-#[derive(Eq, PartialEq, Debug)]
-enum ParseError {
-    SyntaxError(&'static str),
-    InvalidLineEnding,
-    UnknownCommand,
+fn ascii_slice_eq_ignore_case(a_byte: &[u8], b_byte: &[u8]) -> bool {
+    a_byte.len() == b_byte.len() && a_byte.iter()
+        .zip(b_byte.iter())
+        .skip_while(|&(&a, &b)| ascii_eq_ignore_case(a, b))
+        .collect::<Vec<_>>()
+        .len() == 0
 }
 
-fn ascii_eq_ignore_case(a: &[u8], b: &[u8]) -> bool {
-    if a.len() == b.len() {
-        for (i, &a_b) in a.iter().enumerate() {
-            let mut a_byte = a_b;
-            let mut b_byte = b[i];
+fn ascii_eq_ignore_case(a_byte: u8, b_byte: u8) -> bool {
+    ignore_ascii_case(a_byte) == ignore_ascii_case(b_byte)
+}
 
-            if 65 <= a_byte && a_byte <= 90 {
-                a_byte += 32;
-            } 
-
-            if 65 <= b_byte && b_byte <= 90 {
-                b_byte += 32;
-            } 
-
-            if a_byte < 127 && b_byte < 127 {
-                if a_byte != b_byte {
-                    return false;
-                }
-            } else {
+fn read_expect(scanner: &SliceScanner<u8>, expect: &[u8]) -> bool {
+        for (i, &byte) in expect.iter().enumerate() {
+            if scanner.data[i] != byte {
                 return false;
             }
         }
-        true
+        return false;
+    }
+
+fn read_expect_ignore_case(scanner: &mut SliceScanner<u8>, expect: &[u8]) -> bool {
+    let mut bytes_read = 0;
+
+    for (i, &byte) in expect.iter().enumerate() {
+        if !ascii_eq_ignore_case(byte, scanner.data[i]) {
+            return false;
+        }
+        bytes_read = i;
+    }
+
+    scanner.pop_front(bytes_read);
+    return true;
+}
+
+fn pop_front_byte_ignore_case(scanner: &mut SliceScanner<u8>) -> u8 {
+    ignore_ascii_case(scanner.pop_front(1)[0])
+}
+
+// RFC 5321 Section 2.3.8. Lines
+const CR: u8 = 0x0D;
+const LF: u8 = 0x0A;
+
+fn read_line(io: &mut SliceScanner<u8>) -> Result<String, ParseError> {
+    let mut s = "".to_string();
+
+    loop {
+        match io.pop_front(1)[0] {
+            CR => break,
+            LF => {
+                return Err(ParseError::SyntaxError("Expected CR (before LF). Got LF"));
+            }
+            byte => {
+                s.push(byte as char);
+            }
+        }
+    }
+
+    if pop_front_byte_ignore_case(io) == (LF as u8) {
+        Ok(s)
     } else {
-        false
+        Err(ParseError::InvalidLineEnding)
     }
 }
 
@@ -140,56 +172,87 @@ fn is_not_less_than(b: &u8) -> bool {
     }
 }
 
+pub fn read_command(reader: &mut Read) -> Result<Command, ParseError> {
+    panic!("Not implemented")
+}
 
-fn parse_command<'a>(line: &'a [u8]) -> Result<SmtpCommand<'a>, ParseError> {
-    let mut line = SliceScanner::new(line);
+fn parse_command(input_line: &[u8]) -> Result<Command, ParseError> {
+    let mut line: SliceScanner<u8> = SliceScanner::new(input_line);
 
     let crlf = line.pop_back(2);
     if crlf != b"\r\n" {
         return Err(ParseError::InvalidLineEnding);
     }
 
-    let cmd = line.pop_front(4);
-    if ascii_eq_ignore_case(cmd, b"MAIL") {
-
-        if line.pop_while(is_space_byte).len() == 0 {
-            return Err(ParseError::SyntaxError("Invalid MAIL command: Missing space after MAIL"));
-        }
-
-        if ascii_eq_ignore_case(line.pop_front(5), b"FROM:") {
-            let addr = if line.ref_front(1) == b"<" {
-                let _ = line.pop_front(1);
-                let addr = line.pop_while(is_not_less_than);
-                if line.pop_front(1) != b">" {
-                    return Err(ParseError::SyntaxError("Invalid MAIL command: Missing >"));
-                }
-                addr
-            } else {
-                line.pop_while(is_not_space_byte)
-            };
-
-            if line.is_empty() {
-                // XXX: Verify mail addr
-                Ok(SmtpCommand::MAIL(std::str::from_utf8(addr).unwrap()))
-            } else {
-                println!("There were trailing characters on mail command: `{}`", std::str::from_utf8(line.data).unwrap());
-                Err(ParseError::SyntaxError("Invalid trailing characters on MAIL command"))
+    match pop_front_byte_ignore_case(&mut line) as char {
+        'm' => {
+            if line.pop_while(is_space_byte).len() == 0 {
+                return Err(ParseError::SyntaxError("Invalid MAIL command: Missing space after MAIL"));
             }
-        } else {
-            Err(ParseError::SyntaxError("Invalid MAIL command"))
-        }
-    } else if ascii_eq_ignore_case(cmd, b"DATA") {
-        if line.is_empty() {
-            Ok(SmtpCommand::DATA)
-        } else {
-            Err(ParseError::SyntaxError("Invalid DATA command"))
-        }
-    } else {
-        Err(ParseError::UnknownCommand)
+
+            if ascii_slice_eq_ignore_case(line.pop_front(5), b"FROM:") {
+                let addr = if line.ref_front(1) == b"<" {
+                    let _ = line.pop_front(1);
+                    let addr = line.pop_while(is_not_less_than);
+                    if line.pop_front(1) != b">" {
+                        return Err(ParseError::SyntaxError("Invalid MAIL command: Missing >"));
+                    }
+                    addr
+                } else {
+                    line.pop_while(is_not_space_byte)
+                };
+
+                if line.is_empty() {
+                    // XXX: Verify mail addr
+                    Ok(Command::MAIL_FROM(String::from_utf8(addr.iter().map(|&b| b).collect::<Vec<_>>()).unwrap()))
+                } else {
+                    println!("There were trailing characters on mail command: `{}`", std::str::from_utf8(line.data).unwrap());
+                    Err(ParseError::SyntaxError("Invalid trailing characters on MAIL command"))
+                }
+            } else {
+                Err(ParseError::SyntaxError("Invalid MAIL command"))
+            }
+        },
+        'h' => {
+            if read_expect_ignore_case(&mut line, b"ELO ") {
+                Ok(Command::HELO(read_line(&mut line).unwrap()))
+            } else {
+                Ok(Command::Invalid)
+            }
+        },
+        'e' => {
+            if read_expect_ignore_case(&mut line, b"HLO ") {
+                Ok(Command::EHLO(read_line(&mut line).unwrap()))
+            } else {
+                Ok(Command::Invalid)
+            }
+        },
+        'r' => {
+            if read_expect_ignore_case(&mut line, b"CPT TO:") {
+                Ok(Command::RCPT_TO(read_line(&mut line).unwrap()))
+            } else {
+                Ok(Command::Invalid)
+            }
+        },
+        'd' => {
+            if read_expect_ignore_case(&mut line, b"ATA\r\n") {
+                Ok(Command::DATA)
+            } else {
+                Ok(Command::Invalid)
+            }
+        },
+        'q' => {
+            if read_expect_ignore_case(&mut line, b"UIT\r\n") {
+                Ok(Command::QUIT)
+            } else {
+                Ok(Command::Invalid)
+            }
+        },
+        _ => Ok(Command::Invalid)
     }
 }
 
-fn test_parse_command(input : &str, expected: Result<SmtpCommand, ParseError>) {
+fn test_parse_command(input : &str, expected: Result<Command, ParseError>) {
   assert_eq!(expected, parse_command(&input.to_string().into_bytes()));
 }
 
@@ -212,13 +275,13 @@ fn test_commands() {
                         Err(ParseError::SyntaxError("Invalid MAIL command: Missing >")));
 
     test_parse_command("MAIL FROM:<mneumann@ntecs.de>\r\n",
-                        Ok(SmtpCommand::MAIL("mneumann@ntecs.de")));
+                        Ok(Command::MAIL("mneumann@ntecs.de")));
     test_parse_command("MAIL FROM:mneumann@ntecs.de\r\n",
-                        Ok(SmtpCommand::MAIL("mneumann@ntecs.de")));
+                        Ok(Command::MAIL("mneumann@ntecs.de")));
 
 
-    test_parse_command("DATA\r\n", Ok(SmtpCommand::DATA));
-    test_parse_command("data\r\n", Ok(SmtpCommand::DATA));
+    test_parse_command("DATA\r\n", Ok(Command::DATA));
+    test_parse_command("data\r\n", Ok(Command::DATA));
     test_parse_command("data test\r\n",
                         Err(ParseError::SyntaxError("Invalid DATA command")));
 }

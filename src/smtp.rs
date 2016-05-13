@@ -1,111 +1,7 @@
 use std::io::{Read, Write, Result, Error, ErrorKind};
-
-fn read_ascii_char(io: &mut Read) -> Result<u8> {
-    let buf = &mut vec![0; 1];
-    try!(io.read_exact(buf));
-    if buf[0] < 127 {
-        return Ok(buf[0]);
-    }
-    Err(Error::new(ErrorKind::InvalidData, "Non-ASCII char(s) detected"))
-}
-
-// RFC 5321 Section 2.3.8. Lines
-const CR: u8 = 0x0D;
-const LF: u8 = 0x0A;
-fn read_line(io: &mut Read) -> Result<String> {
-    let mut s = "".to_string();
-
-    loop {
-        match try!(read_ascii_char(io)) {
-            CR => break,
-            LF => {
-                return Err(Error::new(ErrorKind::InvalidInput, "Expected CR (before LF). Got LF"))
-            }
-            byte => {
-                s.push(byte as char);
-            }
-        }
-    }
-
-    if try!(read_ascii_char(io)) == (LF as u8) {
-        Ok(s)
-    } else {
-        Err(Error::new(ErrorKind::InvalidData, "LF expected after CR"))
-    }
-}
-
-fn read_expect(io: &mut Read, expect: &[u8]) -> bool {
-    let buf = &mut vec![0; expect.len()];
-    if io.read_exact(buf).is_ok() {
-        for (i, &byte) in expect.iter().enumerate() {
-            if buf[i] != byte {
-                return false;
-            }
-        }
-        return true;
-    }
-    return false;
-}
-
-#[derive(PartialEq, Eq, Debug)]
-#[allow(non_camel_case_types)]
-enum Command {
-    HELO(String),
-    EHLO(String),
-    MAIL_FROM(String),
-    RCPT_TO(String),
-    DATA,
-    QUIT,
-    Invalid,
-}
-
-fn read_command(io: &mut Read) -> Result<Command> {
-    match try!(read_ascii_char(io)) as char {
-        'H' => {
-            if read_expect(io, b"ELO ") {
-                Ok(Command::HELO(read_line(io).unwrap()))
-            } else {
-                Ok(Command::Invalid)
-            }
-        }
-        'E' => {
-            if read_expect(io, b"HLO ") {
-                Ok(Command::EHLO(read_line(io).unwrap()))
-            } else {
-                Ok(Command::Invalid)
-            }
-        }
-        'M' => {
-            if read_expect(io, b"AIL FROM:") {
-                Ok(Command::MAIL_FROM(read_line(io).unwrap()))
-            } else {
-                Ok(Command::Invalid)
-            }
-        }
-        'R' => {
-            if read_expect(io, b"CPT TO:") {
-                Ok(Command::RCPT_TO(read_line(io).unwrap()))
-            } else {
-                Ok(Command::Invalid)
-            }
-        }
-        'D' => {
-            if read_expect(io, b"ATA\r\n") {
-                Ok(Command::DATA)
-            } else {
-                Ok(Command::Invalid)
-            }
-        }
-        'Q' => {
-            if read_expect(io, b"UIT\r\n") {
-                Ok(Command::QUIT)
-            } else {
-                Ok(Command::Invalid)
-            }
-        }
-        _ => Ok(Command::Invalid),
-    }
-}
+use data::Command;
+use parser::read_command;
+use parse_util::read_line;
 
 pub fn handle_connection<C: Read + Write>(mut conn: C) {
     debug!("Got connection");
@@ -120,11 +16,10 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
 
     let client_hostname = match read_command(&mut conn) {
         Ok(Command::EHLO(h)) => h,
-        Ok(Command::HELO(h)) => h,
         Ok(unexpected) => {
             error!("Unexpected command {:?}", unexpected);
             return;
-        }
+        },
         Err(_) => {
             error!("IO error while reading command. Quitting");
             return;
@@ -147,29 +42,32 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
             Ok(Command::MAIL_FROM(mailfrom)) => {
                 println!("FROM: {}", mailfrom);
                 bytes_to_write.extend("250 Ok\r\n".as_bytes().iter())
-            }
+            },
             Ok(Command::RCPT_TO(mailto)) => {
                 println!("TO: {}", mailto);
                 bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
-            }
+            },
             Ok(Command::DATA) => {
                 println!("DATA");
                 bytes_to_write.extend("354 End data with <CR><LF>.<CR><LF>\r\n".as_bytes().iter());
                 loop {
                     let line = read_line(&mut conn).unwrap();
                     println!("Data|{}|", line);
-                    if line.as_str() == "." {
-                        println!("Got end");
-                        break;
-                    }
+                    match &line.as_str() {
+                        &"." => {
+                            println!("Got end");
+                            break;
+                        },
+                        _ => {}
+                    };
                 }
                 bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
-            }
+            },
             Ok(Command::QUIT) => {
                 println!("QUIT");
                 bytes_to_write.extend("221 Bye\r\n".as_bytes().iter());
                 break;
-            }
+            },
             Ok(_) => panic!("Unknown command {:?}", cmd),
             Err(_) => panic!("IO Error"),
         };

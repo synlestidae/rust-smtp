@@ -3,6 +3,8 @@ extern crate log;
 
 pub mod smtp;
 pub mod parser;
+pub mod data;
+mod parse_util;
 
 fn ascii_upcase(ascii: u8) -> u8 {
     if ascii >= b'a' && ascii <= b'z' {
