@@ -2,30 +2,34 @@ use std::io::Read;
 
 use data::{ParseError};
 
-// RFC 5321 Section 2.3.8. Lines
-const CR: u8 = 0x0D;
-const LF: u8 = 0x0A;
+pub fn is_not_space_byte(byte: u8) -> bool {
+    byte != 32,
+}
 
-pub fn read_line(io: &mut Read) -> Result<String, ParseError> {
-    let mut s = "".to_string();
-    let mut buf : &mut [u8] = &mut [0];
-    loop {
-        if let Ok(_) = io.read_exact(buf) {
-            match buf[0] {
-                CR => break,
-                LF => {
-                    return Err(ParseError::SyntaxError("Expected CR (before LF). Got LF"));
-                },
-                byte => {
-                    s.push(byte as char);
-                }
-            }
-        }
-    }
+pub fn is_space_byte(byte: u8) -> bool {
+    byte == 32
+}
 
-    if let Ok(_) = io.read_exact(&mut buf) {
-        Ok(s)
-    } else {
-        Err(ParseError::InvalidLineEnding)
-    }
+pub fn is_not_less_than(byte: u8) -> bool {
+    byte != ('>' as u8)
+}
+
+pub fn ignore_ascii_case(byte_in: u8) -> u8 {
+    let mut byte = byte_in;
+    if 65 <= byte && byte <= 90 {
+        byte += 32;
+    } 
+    byte
+}
+
+pub fn ascii_slice_eq_ignore_case(a_byte: &[u8], b_byte: &[u8]) -> bool {
+    a_byte.len() == b_byte.len() && a_byte.iter()
+        .zip(b_byte.iter())
+        .skip_while(|&(&a, &b)| ascii_eq_ignore_case(a, b))
+        .collect::<Vec<_>>()
+        .len() == 0
+}
+
+pub fn ascii_eq_ignore_case(a_byte: u8, b_byte: u8) -> bool {
+    ignore_ascii_case(a_byte) == ignore_ascii_case(b_byte)
 }
