@@ -13,11 +13,11 @@ pub fn read_command(stream: &mut Read) -> Result<Command, ParseError> {
 pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
     let total_len = command.len();
 
-    if total_len < 2 || command[total_len - 2] != CR && command[total_len - 1] != LF {
+    if total_len < 2 || command[total_len - 2] != CR || command[total_len - 1] != LF {
         return Err(ParseError::InvalidLineEnding);
     }
 
-    let mut input_line = &command[0..total_len - 2];
+    let mut input_line = &command[0..total_len];
     let mut line = SliceScanner::new(input_line);
 
     match line.pop().map(|b: u8| ignore_ascii_case(b) as char) {
@@ -34,7 +34,7 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
 
             if line.match_next_str_ignore_case("FROM:") {
                 let addr = if line.match_next_str_ignore_case("<") {
-                    let _ = line.pop();
+                    line.pop_while(|b| b != ' ' as u8);
                     let addr = line.pop_while(|b: u8| b != '>' as u8 && b != CR && b != LF);
                     println!("Addr: {:?}. At end? {}",
                              String::from_utf8(addr.clone()).unwrap(),
@@ -52,9 +52,9 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
                     }
                     addr
                 } else {
-                    line.pop_while(|b| b != ' ' as u8)
+                    return Err(ParseError::MalformedCommand);
                 };
-
+                println!("Line: {} {:?}", line.data().len(), line);
                 if line.match_next_str_ignore_case("\r\n") && line.is_at_end() {
                     // XXX: Verify mail addr
                     Ok(Command::MAIL_FROM(String::from_utf8(addr).unwrap()))

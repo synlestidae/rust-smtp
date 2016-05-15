@@ -30,7 +30,7 @@ impl<'a> SliceScanner<'a> {
     }
 
     pub fn is_at_end(&self) -> bool {
-        self.data.len() >= self.index
+        self.data.len() <= self.index
     }
 
     pub fn pop_many(&mut self, many: usize) -> Vec<u8> {
@@ -57,9 +57,9 @@ impl<'a> SliceScanner<'a> {
                         break;
                     }
                 }
-            }
+            };
+            println!("{} out of {}", self.index, self.data.len());
         }
-        println!("Popped: {}", String::from_utf8(result.clone()).unwrap());
         result
     }
 
