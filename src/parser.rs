@@ -20,7 +20,7 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
     let mut input_line = &command[0..total_len - 2];
     let mut line = SliceScanner::new(input_line);
 
-    match line.pop().map(|b: u8| b as char) {
+    match line.pop().map(|b: u8| ignore_ascii_case(b) as char) {
         Some('m') => {
             if !line.match_next_str_ignore_case("AIL") {
                 return Err(ParseError::SyntaxError("Malformed commands. Only MAIL FROM begins \
@@ -35,18 +35,27 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
             if line.match_next_str_ignore_case("FROM:") {
                 let addr = if line.match_next_str_ignore_case("<") {
                     let _ = line.pop();
-                    let addr = line.pop_while(is_not_less_than);
-                    if line.pop() != Some('>' as u8) {
-                        return Err(ParseError::SyntaxError("Invalid MAIL command: Missing >"));
+                    let addr = line.pop_while(|b: u8| b != '>' as u8 && b != CR && b != LF);
+                    println!("Addr: {:?}. At end? {}",
+                             String::from_utf8(addr.clone()).unwrap(),
+                             line.is_at_end());
+                    if !line.is_at_end() {
+                        match line.pop() {
+                            Some(62) => {} //ASCII for '>'
+                            _ => {
+                                return Err(ParseError::SyntaxError("Invalid MAIL command: \
+                                                                    Missing >"))
+                            }
+                        }
+                    } else {
+                        return Err(ParseError::InvalidLineEnding);
                     }
                     addr
                 } else {
-                    line.pop_while(is_not_space_byte)
+                    line.pop_while(|b| b != ' ' as u8)
                 };
 
-                line.match_next_str_ignore_case("\r\n");
-
-                if line.is_at_end() {
+                if line.match_next_str_ignore_case("\r\n") && line.is_at_end() {
                     // XXX: Verify mail addr
                     Ok(Command::MAIL_FROM(String::from_utf8(addr).unwrap()))
                 } else {
@@ -62,38 +71,38 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
             if line.match_next_bytes_ignore_case(b"ELO ") {
                 Ok(Command::HELO(line.read_line().unwrap()))
             } else {
-                Ok(Command::Invalid)
+                Err(ParseError::MalformedCommand)
             }
         }
         Some('e') => {
             if line.match_next_bytes_ignore_case(b"HLO ") {
                 Ok(Command::EHLO(line.read_line().unwrap()))
             } else {
-                Ok(Command::Invalid)
+                Err(ParseError::MalformedCommand)
             }
         }
         Some('r') => {
             if line.match_next_bytes_ignore_case(b"CPT TO:") {
                 Ok(Command::RCPT_TO(line.read_line().unwrap()))
             } else {
-                Ok(Command::Invalid)
+                Err(ParseError::MalformedCommand)
             }
         }
         Some('d') => {
             if line.match_next_bytes_ignore_case(b"ATA\r\n") {
                 Ok(Command::DATA)
             } else {
-                Ok(Command::Invalid)
+                Err(ParseError::MalformedCommand)
             }
         }
         Some('q') => {
             if line.match_next_bytes_ignore_case(b"UIT\r\n") {
                 Ok(Command::QUIT)
             } else {
-                Ok(Command::Invalid)
+                Err(ParseError::MalformedCommand)
             }
         }
-        _ => Ok(Command::Invalid),
+        _ => Err(ParseError::MalformedCommand),
     }
 }
 

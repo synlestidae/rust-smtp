@@ -19,7 +19,7 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
         Ok(unexpected) => {
             error!("Unexpected command {:?}", unexpected);
             return;
-        },
+        }
         Err(_) => {
             error!("IO error while reading command. Quitting");
             return;

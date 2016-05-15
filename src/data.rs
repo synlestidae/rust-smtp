@@ -7,7 +7,6 @@ pub enum Command {
     RCPT_TO(String),
     DATA,
     QUIT,
-    Invalid,
 }
 
 #[allow(dead_code)]
@@ -16,5 +15,6 @@ pub enum ParseError {
     SyntaxError(&'static str),
     InvalidLineEnding,
     UnknownCommand,
+    MalformedCommand,
     UnexpectedEndOfInput,
 }
