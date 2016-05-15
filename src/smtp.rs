@@ -19,7 +19,7 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
         Ok(unexpected) => {
             error!("Unexpected command {:?}", unexpected);
             return;
-        },
+        }
         Err(_) => {
             error!("IO error while reading command. Quitting");
             return;
@@ -42,11 +42,11 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
             Ok(Command::MAIL_FROM(mailfrom)) => {
                 println!("FROM: {}", mailfrom);
                 bytes_to_write.extend("250 Ok\r\n".as_bytes().iter())
-            },
+            }
             Ok(Command::RCPT_TO(mailto)) => {
                 println!("TO: {}", mailto);
                 bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
-            },
+            }
             Ok(Command::DATA) => {
                 println!("DATA");
                 bytes_to_write.extend("354 End data with <CR><LF>.<CR><LF>\r\n".as_bytes().iter());
@@ -57,17 +57,17 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
                         &"." => {
                             println!("Got end");
                             break;
-                        },
+                        }
                         _ => {}
                     };
                 }
                 bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
-            },
+            }
             Ok(Command::QUIT) => {
                 println!("QUIT");
                 bytes_to_write.extend("221 Bye\r\n".as_bytes().iter());
                 break;
-            },
+            }
             Ok(_) => panic!("Unknown command {:?}", cmd),
             Err(_) => panic!("IO Error"),
         };
