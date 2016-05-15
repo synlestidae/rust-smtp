@@ -5,8 +5,9 @@ use std::io::Read;
 use parse_util::*;
 use data::{Command, ParseError};
 
-pub fn read_command(stream: &Read) -> Result<Command, ParseError> {
-    panic!("Not implemented")
+pub fn read_command(stream: &mut Read) -> Result<Command, ParseError> {
+    let line = try!(read_line(stream)).into_bytes();
+    parse_command(&line)
 }
 
 pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
@@ -119,9 +120,9 @@ fn test_commands() {
                        Err(ParseError::SyntaxError("Invalid MAIL command: Missing >")));
 
     test_parse_command("MAIL FROM:<mneumann@ntecs.de>\r\n",
-                       Ok(Command::MAIL("mneumann@ntecs.de")));
+                       Ok(Command::MAIL_FROM(String::from("mneumann@ntecs.de"))));
     test_parse_command("MAIL FROM:mneumann@ntecs.de\r\n",
-                       Ok(Command::MAIL("mneumann@ntecs.de")));
+                       Ok(Command::MAIL_FROM(String::from("mneumann@ntecs.de"))));
 
 
     test_parse_command("DATA\r\n", Ok(Command::DATA));
