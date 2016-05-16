@@ -15,6 +15,6 @@ pub enum ParseError {
     SyntaxError(&'static str),
     InvalidLineEnding,
     UnknownCommand,
-    MalformedCommand,
+    MalformedCommand(&'static str),
     UnexpectedEndOfInput,
 }

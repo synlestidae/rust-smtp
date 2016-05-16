@@ -60,38 +60,38 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
             if line.match_next_bytes_ignore_case(b"ELO ") {
                 Ok(Command::HELO(line.read_line().unwrap()))
             } else {
-                Err(ParseError::MalformedCommand)
+                Err(ParseError::MalformedCommand("Expected HELO"))
             }
         }
         Some('e') => {
             if line.match_next_bytes_ignore_case(b"HLO ") {
                 Ok(Command::EHLO(line.read_line().unwrap()))
             } else {
-                Err(ParseError::MalformedCommand)
+                Err(ParseError::MalformedCommand("Expected EHLO"))
             }
         }
         Some('r') => {
             if line.match_next_bytes_ignore_case(b"CPT TO:") {
                 Ok(Command::RCPT_TO(line.read_line().unwrap()))
             } else {
-                Err(ParseError::MalformedCommand)
+                Err(ParseError::MalformedCommand("Expected RCPT TO"))
             }
         }
         Some('d') => {
             if line.match_next_bytes_ignore_case(b"ATA\r\n") {
                 Ok(Command::DATA)
             } else {
-                Err(ParseError::MalformedCommand)
+                Err(ParseError::MalformedCommand("Expected DATA"))
             }
         }
         Some('q') => {
             if line.match_next_bytes_ignore_case(b"UIT\r\n") {
                 Ok(Command::QUIT)
             } else {
-                Err(ParseError::MalformedCommand)
+                Err(ParseError::MalformedCommand("Expected QUIT"))
             }
         }
-        _ => Err(ParseError::MalformedCommand),
+        _ => Err(ParseError::MalformedCommand("Unknown command")),
     }
 }
 
@@ -126,7 +126,7 @@ fn test_commands() {
     test_parse_command("DATA\r\n", Ok(Command::DATA));
     test_parse_command("data\r\n", Ok(Command::DATA));
     test_parse_command("data test\r\n",
-                       Err(ParseError::SyntaxError("Invalid DATA command")));
+                       Err(ParseError::MalformedCommand("Expected DATA")));
 }
 
 fn main() {
