@@ -1,5 +1,3 @@
-use std::cmp::min;
-use std;
 use std::io::Read;
 
 use parse_util::*;
@@ -14,10 +12,11 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
     let total_len = command.len();
 
     if total_len < 2 || command[total_len - 2] != CR || command[total_len - 1] != LF {
+        println!("This command wrong: {:?}", String::from_utf8(command.iter().map(|&b| b).collect::<Vec<u8>>()).unwrap());
         return Err(ParseError::InvalidLineEnding);
     }
 
-    let mut input_line = &command[0..total_len];
+    let input_line = &command[0..total_len];
     let mut line = SliceScanner::new(input_line);
 
     match line.pop().map(|b: u8| ignore_ascii_case(b) as char) {
@@ -95,12 +94,12 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
     }
 }
 
-fn test_parse_command(input: &str, expected: Result<Command, ParseError>) {
-    assert_eq!(expected, parse_command(&input.to_string().into_bytes()));
-}
-
 #[test]
 fn test_commands() {
+    fn test_parse_command(input: &str, expected: Result<Command, ParseError>) {
+        assert_eq!(expected, parse_command(&input.to_string().into_bytes()));
+    }
+
     // test_parse_command!("", Err(InvalidLineEnding));
     test_parse_command("\r", Err(ParseError::InvalidLineEnding));
     test_parse_command("\n", Err(ParseError::InvalidLineEnding));
@@ -127,10 +126,4 @@ fn test_commands() {
     test_parse_command("data\r\n", Ok(Command::DATA));
     test_parse_command("data test\r\n",
                        Err(ParseError::MalformedCommand("Expected DATA")));
-}
-
-fn main() {
-    let buf = b"MAIL FROM:<mneumann@ntecs.de>\r\n";
-    let cmd = parse_command(buf);
-    println!("{:?}", cmd);
 }

@@ -1,4 +1,4 @@
-use std::io::{Read, Write, Result, Error, ErrorKind};
+use std::io::{Read, Write};
 use data::Command;
 use parser::read_command;
 use parse_util::read_line;
@@ -20,8 +20,8 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
             error!("Unexpected command {:?}", unexpected);
             return;
         }
-        Err(_) => {
-            error!("IO error while reading command. Quitting");
+        Err(error) => {
+            error!("Error while reading command: {:?}. Quitting", error);
             return;
         }
     };
@@ -68,8 +68,8 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
                 bytes_to_write.extend("221 Bye\r\n".as_bytes().iter());
                 break;
             }
-            Ok(_) => panic!("Unknown command {:?}", cmd),
-            Err(_) => panic!("IO Error"),
+            Ok(command) => bytes_to_write.extend(format!("Unknown command {:?}", command).bytes()),
+            Err(error) => bytes_to_write.extend(format!("500 Error while parsing command: {:?}\r\n", error).bytes()),
         };
 
         if let Ok(_) = conn.write_all(&bytes_to_write) {

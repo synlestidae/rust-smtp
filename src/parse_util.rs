@@ -1,5 +1,4 @@
 use std::io::Read;
-use std::cmp;
 use data::ParseError;
 
 // RFC 5321 Section 2.3.8. Lines
@@ -31,16 +30,6 @@ impl<'a> SliceScanner<'a> {
 
     pub fn is_at_end(&self) -> bool {
         self.data.len() <= self.index
-    }
-
-    pub fn pop_many(&mut self, many: usize) -> Vec<u8> {
-        let out = self.data[self.index..(self.index + many)]
-                      .iter()
-                      .map(|&b| b)
-                      .collect::<Vec<u8>>();
-
-        self.index = cmp::min(self.index + self.data.len(), self.data.len());
-        out
     }
 
     pub fn pop_while<P>(&mut self, predicate: P) -> Vec<u8>
@@ -113,10 +102,6 @@ impl<'a> SliceScanner<'a> {
             Err(ParseError::InvalidLineEnding)
         }
     }
-
-    pub fn data(&'a self) -> &'a [u8] {
-        self.data
-    }
 }
 
 pub fn read_line(stream: &mut Read) -> Result<String, ParseError> {
@@ -127,9 +112,11 @@ pub fn read_line(stream: &mut Read) -> Result<String, ParseError> {
         match stream.read(&mut buf) {
             Ok(_) => {
                 if buf[0] == CR {
+                    s.push('\r');
                     ready_for_lf = true;
                 } else if buf[0] == LF {
                     if ready_for_lf {
+                        s.push('\n');
                         return Ok(s);
                     } else {
                         return Err(ParseError::InvalidLineEnding);
@@ -139,7 +126,7 @@ pub fn read_line(stream: &mut Read) -> Result<String, ParseError> {
                     ready_for_lf = false;
                     s.push(buf[0] as char);
                 }
-            }
+            },
             Err(_) => return Err(ParseError::InvalidLineEnding),
         }
     }
@@ -149,16 +136,8 @@ pub fn ascii_eq_ignore_case(a_byte: u8, b_byte: u8) -> bool {
     ignore_ascii_case(a_byte) == ignore_ascii_case(b_byte)
 }
 
-pub fn is_not_space_byte(byte: u8) -> bool {
-    byte != 32
-}
-
 pub fn is_space_byte(byte: u8) -> bool {
     byte == 32
-}
-
-pub fn is_not_greater_than(byte: u8) -> bool {
-    byte != ('>' as u8)
 }
 
 pub fn ignore_ascii_case(byte_in: u8) -> u8 {
