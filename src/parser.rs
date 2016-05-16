@@ -33,34 +33,23 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
             }
 
             if line.match_next_str_ignore_case("FROM:") {
+                line.pop_while(|b: u8| b == (' ' as u8));
                 let addr = if line.match_next_str_ignore_case("<") {
-                    line.pop_while(|b| b != ' ' as u8);
-                    let addr = line.pop_while(|b: u8| b != '>' as u8 && b != CR && b != LF);
-                    println!("Addr: {:?}. At end? {}",
-                             String::from_utf8(addr.clone()).unwrap(),
-                             line.is_at_end());
-                    if !line.is_at_end() {
-                        match line.pop() {
-                            Some(62) => {} //ASCII for '>'
-                            _ => {
-                                return Err(ParseError::SyntaxError("Invalid MAIL command: \
-                                                                    Missing >"))
-                            }
-                        }
-                    } else {
-                        return Err(ParseError::InvalidLineEnding);
+                    line.pop_while(|b| b == ' ' as u8);
+                    let addr = line.pop_while(|b: u8| b != '>' as u8);
+                    if line.is_at_end() {
+                        return Err(ParseError::SyntaxError("Invalid MAIL command: \
+                                                                    Missing >"));
                     }
+                    line.match_next_str_ignore_case(">");
                     addr
                 } else {
-                    return Err(ParseError::MalformedCommand);
+                    let addr = line.pop_while(|b: u8| b != CR && b != LF && b != (' ' as u8));
+                    addr
                 };
-                println!("Line: {} {:?}", line.data().len(), line);
                 if line.match_next_str_ignore_case("\r\n") && line.is_at_end() {
-                    // XXX: Verify mail addr
                     Ok(Command::MAIL_FROM(String::from_utf8(addr).unwrap()))
                 } else {
-                    println!("There were trailing characters on mail command: `{}`",
-                             std::str::from_utf8(line.data()).unwrap());
                     Err(ParseError::SyntaxError("Invalid trailing characters on MAIL command"))
                 }
             } else {

@@ -58,7 +58,6 @@ impl<'a> SliceScanner<'a> {
                     }
                 }
             };
-            println!("{} out of {}", self.index, self.data.len());
         }
         result
     }
