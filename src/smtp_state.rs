@@ -1,76 +1,54 @@
 use data::Command;
+use response::Response;
 
 #[derive(Copy, Clone)]
 pub enum SmtpState {
-	Start,
-	ReadyForRecptTo,
-	ReadyForData,
-	DataInProgress,
-	ReadyToProcess,
-	Quit
+    Start,
+    ReadyForRecptTo,
+    ReadyForData,
+    DataInProgress,
+    ReadyToProcess,
+    Quit,
 }
 
 pub enum SmtpError {
-	UnknownCommand
+    UnknownCommand,
 }
 
 pub const OK: u16 = 250;
 
-pub struct Response {
-    pub code: u16,
-    pub message: &'static str,
-    pub args: Option<Vec<String>>
-}
-
-impl Response {
-    pub fn new(code: u16, message: &'static str) -> Response {
-        Response {
-            code: code,
-            message: message,
-            args: None
-        }
-    }
-    pub fn new_with_args(code: u16, message: &'static str, args: Vec<String>) -> Response {
-        Response {
-            code: code,
-            message: message,
-            args: Some(args)
-        }
-    }
-}
-
 pub struct SmtpStateMachine {
-	state: SmtpState
+    state: SmtpState,
 }
 
 impl SmtpStateMachine {
-	pub fn new() -> SmtpStateMachine {
-		SmtpStateMachine { state: SmtpState::Start }
-	}
+    pub fn new() -> SmtpStateMachine {
+        SmtpStateMachine { state: SmtpState::Start }
+    }
 
-	pub fn state(&self) -> SmtpState {
-		self.state
-	}
+    pub fn state(&self) -> SmtpState {
+        self.state
+    }
 
-	pub fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError> {
-		match (self.state, cmd) {
-			(SmtpState::Start, &Command::MAIL_FROM(ref mailfrom)) => {
-				self.state = SmtpState::ReadyForRecptTo;
-	            Ok(Response::new(OK, "OK"))
-        	},
-	        (SmtpState::ReadyForRecptTo, &Command::RCPT_TO(ref mailto)) => {
-	        	self.state = SmtpState::ReadyForData;
-	            Ok(Response::new(OK, "OK"))
-	        },
-	        (SmtpState::ReadyForData, &Command::DATA) => {
-	        	self.state = SmtpState::DataInProgress;
-	            Ok(Response::new(354, "End data with <CR><LF>.<CR><LF>"))
-	        },
-	        (_, &Command::QUIT) => {
-	        	self.state = SmtpState::Quit;
-	            Ok(Response::new(221, "Bye"))
-	        },
-	        _ => Err(SmtpError::UnknownCommand)
-		}
-	}
+    pub fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError> {
+        match (self.state, cmd) {
+            (SmtpState::Start, &Command::MAIL_FROM(ref mailfrom)) => {
+                self.state = SmtpState::ReadyForRecptTo;
+                Ok(Response::new(OK, "OK"))
+            }
+            (SmtpState::ReadyForRecptTo, &Command::RCPT_TO(ref mailto)) => {
+                self.state = SmtpState::ReadyForData;
+                Ok(Response::new(OK, "OK"))
+            }
+            (SmtpState::ReadyForData, &Command::DATA) => {
+                self.state = SmtpState::DataInProgress;
+                Ok(Response::new(354, "End data with <CR><LF>.<CR><LF>"))
+            }
+            (_, &Command::QUIT) => {
+                self.state = SmtpState::Quit;
+                Ok(Response::new(221, "Bye"))
+            }
+            _ => Err(SmtpError::UnknownCommand),
+        }
+    }
 }

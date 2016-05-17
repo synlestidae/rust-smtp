@@ -6,6 +6,7 @@ pub mod parser;
 pub mod data;
 mod parse_util;
 mod smtp_state;
+mod response;
 
 fn ascii_upcase(ascii: u8) -> u8 {
     if ascii >= b'a' && ascii <= b'z' {

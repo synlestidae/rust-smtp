@@ -10,7 +10,8 @@ pub fn main() {
     log::set_logger(|max_log_level| {
         max_log_level.set(log::LogLevelFilter::Info);
         Box::new(SimpleLogger)
-    }).unwrap();
+    })
+        .unwrap();
 
     match TcpListener::bind(("127.0.0.1", 25255)) {
         Ok(listener) => {

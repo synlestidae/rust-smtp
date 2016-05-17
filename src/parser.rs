@@ -12,7 +12,8 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
     let total_len = command.len();
 
     if total_len < 2 || command[total_len - 2] != CR || command[total_len - 1] != LF {
-        println!("This command wrong: {:?}", String::from_utf8(command.iter().map(|&b| b).collect::<Vec<u8>>()).unwrap());
+        println!("This command wrong: {:?}",
+                 String::from_utf8(command.iter().map(|&b| b).collect::<Vec<u8>>()).unwrap());
         return Err(ParseError::InvalidLineEnding);
     }
 

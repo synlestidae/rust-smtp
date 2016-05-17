@@ -126,7 +126,7 @@ pub fn read_line(stream: &mut Read) -> Result<String, ParseError> {
                     ready_for_lf = false;
                     s.push(buf[0] as char);
                 }
-            },
+            }
             Err(_) => return Err(ParseError::InvalidLineEnding),
         }
     }

@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 use data::Command;
 use parser::read_command;
 use parse_util::read_line;
+use smtp_state::{SmtpStateMachine, SmtpState, SmtpError};
 
 pub fn handle_connection<C: Read + Write>(mut conn: C) {
     debug!("Got connection");
@@ -36,15 +37,20 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
     }
 
     let mut bytes_to_write: Vec<u8> = Vec::new();
+    let mut session_state = SmtpStateMachine::new();
     loop {
         bytes_to_write.clear();
         let cmd_result = read_command(&mut conn);
-        if let Ok(cmd) =  cmd_result {
-            handle_command_behaviour(&cmd, &mut bytes_to_write, &mut conn);
+        if let Ok(cmd) = cmd_result {
+            if let Ok(response) = session_state.transition(&cmd) {
+                bytes_to_write.extend(response.to_bytes());
+            } else {
+                // meh
+            }
             flush_bytes(&bytes_to_write, &mut conn);
-        }
-        else {
-            bytes_to_write.extend(format!("500 Error while parsing command: {:?}\r\n", cmd_result).bytes())
+        } else {
+            bytes_to_write.extend(format!("500 Error while parsing command: {:?}\r\n", cmd_result)
+                                      .bytes())
         }
     }
 }
@@ -59,39 +65,5 @@ fn flush_bytes(bytes_to_write: &Vec<u8>, conn: &mut Write) {
     } else {
         error!("Failed to write bytes.");
         return;
-    }
-}
-
-fn handle_command_behaviour(cmd: &Command, bytes_to_write: &mut Vec<u8>, conn: &mut Read) {
-    match cmd {
-        &Command::MAIL_FROM(ref mailfrom) => {
-            println!("FROM: {}", mailfrom);
-            bytes_to_write.extend("250 Ok\r\n".as_bytes().iter())
-        },
-        &Command::RCPT_TO(ref mailto) => {
-            println!("TO: {}", mailto);
-            bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
-        },
-        &Command::DATA => {
-            println!("DATA");
-            bytes_to_write.extend("354 End data with <CR><LF>.<CR><LF>\r\n".as_bytes().iter());
-            loop {
-                let line = read_line(conn).unwrap();
-                println!("Data|{}|", line);
-                match &line.as_str() {
-                    &"." => {
-                        println!("Got end");
-                        break;
-                    }
-                    _ => {}
-                };
-            }
-            bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
-        },
-        &Command::QUIT => {
-            println!("QUIT");
-            bytes_to_write.extend("221 Bye\r\n".as_bytes().iter());
-        },
-        command => bytes_to_write.extend(format!("Unknown command {:?}", command).bytes())
     }
 }
