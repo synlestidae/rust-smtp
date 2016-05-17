@@ -7,6 +7,7 @@ pub enum Command {
     RCPT_TO(String),
     DATA,
     QUIT,
+    RESET
 }
 
 #[allow(dead_code)]

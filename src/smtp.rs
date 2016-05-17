@@ -37,51 +37,61 @@ pub fn handle_connection<C: Read + Write>(mut conn: C) {
 
     let mut bytes_to_write: Vec<u8> = Vec::new();
     loop {
-        let cmd = read_command(&mut conn);
-        match cmd {
-            Ok(Command::MAIL_FROM(mailfrom)) => {
-                println!("FROM: {}", mailfrom);
-                bytes_to_write.extend("250 Ok\r\n".as_bytes().iter())
-            }
-            Ok(Command::RCPT_TO(mailto)) => {
-                println!("TO: {}", mailto);
-                bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
-            }
-            Ok(Command::DATA) => {
-                println!("DATA");
-                bytes_to_write.extend("354 End data with <CR><LF>.<CR><LF>\r\n".as_bytes().iter());
-                loop {
-                    let line = read_line(&mut conn).unwrap();
-                    println!("Data|{}|", line);
-                    match &line.as_str() {
-                        &"." => {
-                            println!("Got end");
-                            break;
-                        }
-                        _ => {}
-                    };
-                }
-                bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
-            }
-            Ok(Command::QUIT) => {
-                println!("QUIT");
-                bytes_to_write.extend("221 Bye\r\n".as_bytes().iter());
-                break;
-            }
-            Ok(command) => bytes_to_write.extend(format!("Unknown command {:?}", command).bytes()),
-            Err(error) => bytes_to_write.extend(format!("500 Error while parsing command: {:?}\r\n", error).bytes()),
-        };
+        bytes_to_write.clear();
+        let cmd_result = read_command(&mut conn);
+        if let Ok(cmd) =  cmd_result {
+            handle_command_behaviour(&cmd, &mut bytes_to_write, &mut conn);
+            flush_bytes(&bytes_to_write, &mut conn);
+        }
+        else {
+            bytes_to_write.extend(format!("500 Error while parsing command: {:?}\r\n", cmd_result).bytes())
+        }
+    }
+}
 
-        if let Ok(_) = conn.write_all(&bytes_to_write) {
-            let flush_result = conn.flush();
-            if !flush_result.is_ok() {
-                error!("Failed to flush bytes to connection. Ending session");
-                return;
-            }
-        } else {
-            error!("Failed to write bytes. Ending session.");
+fn flush_bytes(bytes_to_write: &Vec<u8>, conn: &mut Write) {
+    if let Ok(_) = conn.write_all(&bytes_to_write) {
+        let flush_result = conn.flush();
+        if !flush_result.is_ok() {
+            error!("Failed to flush bytes to connection.");
             return;
         }
+    } else {
+        error!("Failed to write bytes.");
+        return;
+    }
+}
 
+fn handle_command_behaviour(cmd: &Command, bytes_to_write: &mut Vec<u8>, conn: &mut Read) {
+    match cmd {
+        &Command::MAIL_FROM(ref mailfrom) => {
+            println!("FROM: {}", mailfrom);
+            bytes_to_write.extend("250 Ok\r\n".as_bytes().iter())
+        },
+        &Command::RCPT_TO(ref mailto) => {
+            println!("TO: {}", mailto);
+            bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
+        },
+        &Command::DATA => {
+            println!("DATA");
+            bytes_to_write.extend("354 End data with <CR><LF>.<CR><LF>\r\n".as_bytes().iter());
+            loop {
+                let line = read_line(conn).unwrap();
+                println!("Data|{}|", line);
+                match &line.as_str() {
+                    &"." => {
+                        println!("Got end");
+                        break;
+                    }
+                    _ => {}
+                };
+            }
+            bytes_to_write.extend("250 Ok\r\n".as_bytes().iter());
+        },
+        &Command::QUIT => {
+            println!("QUIT");
+            bytes_to_write.extend("221 Bye\r\n".as_bytes().iter());
+        },
+        command => bytes_to_write.extend(format!("Unknown command {:?}", command).bytes())
     }
 }

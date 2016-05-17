@@ -12,7 +12,7 @@ pub fn main() {
         Box::new(SimpleLogger)
     }).unwrap();
 
-    match TcpListener::bind(("127.0.0.1", 25252)) {
+    match TcpListener::bind(("127.0.0.1", 25255)) {
         Ok(listener) => {
             for acceptor in listener.incoming() {
                 match acceptor {
