@@ -4,7 +4,7 @@ extern crate log;
 use std::net::TcpListener;
 use std::thread::spawn;
 use std::error::Error;
-use nibbler::smtp;
+use nibbler::smtp::{DefaultConnectionHandler, ConnectionHandler};
 
 pub fn main() {
     log::set_logger(|max_log_level| {
@@ -16,9 +16,10 @@ pub fn main() {
     match TcpListener::bind(("127.0.0.1", 25255)) {
         Ok(listener) => {
             for acceptor in listener.incoming() {
+                let handler = DefaultConnectionHandler::new();
                 match acceptor {
                     Ok(conn) => {
-                        spawn(|| smtp::handle_connection(conn));
+                        spawn(move || handler.handle_connection(conn));
                     }
                     _ => (),
                 }

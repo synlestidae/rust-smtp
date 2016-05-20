@@ -17,20 +17,27 @@ pub enum SmtpError {
 
 pub const OK: u16 = 250;
 
-pub struct SmtpStateMachine {
+pub trait SmtpStateMachine {
+    fn state(&self) -> SmtpState;
+    fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError>;
+}
+
+pub struct DefaultStateMachine {
     state: SmtpState,
 }
 
-impl SmtpStateMachine {
-    pub fn new() -> SmtpStateMachine {
-        SmtpStateMachine { state: SmtpState::Start }
+impl DefaultStateMachine {
+    pub fn new() -> DefaultStateMachine {
+        DefaultStateMachine { state: SmtpState::Start }
     }
+}
 
-    pub fn state(&self) -> SmtpState {
+impl SmtpStateMachine for DefaultStateMachine {
+    fn state(&self) -> SmtpState {
         self.state
     }
 
-    pub fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError> {
+    fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError> {
         match (self.state, cmd) {
             (SmtpState::Start, &Command::MAIL_FROM(ref mailfrom)) => {
                 self.state = SmtpState::ReadyForRecptTo;
