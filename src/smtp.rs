@@ -3,11 +3,16 @@ use data::Command;
 use parser::read_command;
 use parse_util::read_line;
 use smtp_state::{SmtpStateMachine, DefaultStateMachine, SmtpState, SmtpError};
+use payload::Payload;
+use std::sync::mpsc::Sender;
 
-pub struct DefaultConnectionHandler;
+pub struct DefaultConnectionHandler {
+    message_sender: Sender<Payload>,
+}
+
 impl DefaultConnectionHandler {
-    pub fn new() -> DefaultConnectionHandler {
-        DefaultConnectionHandler
+    pub fn new(message_sender: Sender<Payload>) -> DefaultConnectionHandler {
+        DefaultConnectionHandler { message_sender: message_sender }
     }
 }
 
@@ -50,6 +55,7 @@ impl ConnectionHandler for DefaultConnectionHandler {
 
         let mut bytes_to_write: Vec<u8> = Vec::new();
         let mut session_state = DefaultStateMachine::new();
+
         loop {
             bytes_to_write.clear();
             let cmd_result = read_command(&mut conn);

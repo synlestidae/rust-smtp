@@ -4,6 +4,8 @@ extern crate log;
 pub mod smtp;
 pub mod parser;
 pub mod data;
+mod address;
+mod payload;
 mod parse_util;
 mod smtp_state;
 mod response;

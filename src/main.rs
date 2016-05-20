@@ -5,6 +5,7 @@ use std::net::TcpListener;
 use std::thread::spawn;
 use std::error::Error;
 use nibbler::smtp::{DefaultConnectionHandler, ConnectionHandler};
+use std::sync::mpsc::{Sender, Receiver, channel};
 
 pub fn main() {
     log::set_logger(|max_log_level| {
@@ -13,10 +14,20 @@ pub fn main() {
     })
         .unwrap();
 
+    let (message_tx, message_rx) = channel();
+
+    spawn(move || {
+        loop {
+            if let Ok(message) = message_rx.recv() {
+                println!("Got message.");
+            }
+        }
+    });
+
     match TcpListener::bind(("127.0.0.1", 25255)) {
         Ok(listener) => {
             for acceptor in listener.incoming() {
-                let handler = DefaultConnectionHandler::new();
+                let handler = DefaultConnectionHandler::new(message_tx.clone());
                 match acceptor {
                     Ok(conn) => {
                         spawn(move || handler.handle_connection(conn));

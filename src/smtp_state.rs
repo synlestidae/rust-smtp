@@ -1,6 +1,7 @@
 use data::Command;
 use response::Response;
-
+use payload::Payload;
+use std::mem;
 #[derive(Copy, Clone)]
 pub enum SmtpState {
     Start,
@@ -20,15 +21,20 @@ pub const OK: u16 = 250;
 pub trait SmtpStateMachine {
     fn state(&self) -> SmtpState;
     fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError>;
+    fn extract_payload(&mut self) -> Option<Payload>;
 }
 
 pub struct DefaultStateMachine {
     state: SmtpState,
+    current_payload: Option<Payload>,
 }
 
 impl DefaultStateMachine {
     pub fn new() -> DefaultStateMachine {
-        DefaultStateMachine { state: SmtpState::Start }
+        DefaultStateMachine {
+            state: SmtpState::Start,
+            current_payload: None,
+        }
     }
 }
 
@@ -57,5 +63,11 @@ impl SmtpStateMachine for DefaultStateMachine {
             }
             _ => Err(SmtpError::UnknownCommand),
         }
+    }
+
+    fn extract_payload(&mut self) -> Option<Payload> {
+        let mut swapped_payload = None;
+        mem::swap(&mut swapped_payload, &mut self.current_payload);
+        swapped_payload
     }
 }
