@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use data::Command;
 use parser::read_command;
-use parse_util::read_line;
+use parse_util::{read_line, read_line_bytes};
 use smtp_state::{SmtpStateMachine, DefaultStateMachine, SmtpState, SmtpError};
 use payload::Payload;
 use std::sync::mpsc::Sender;
@@ -44,7 +44,7 @@ impl ConnectionHandler for DefaultConnectionHandler {
             }
         };
 
-        println!("Client hostname: {}", client_hostname);
+        info!("Client hostname: {}", client_hostname);
 
         if let Ok(_) = conn.write_all(&format!("250 Hello {}\r\n", client_hostname).into_bytes()) {
             info!("Saying Hello to {}", client_hostname);
@@ -65,19 +65,60 @@ impl ConnectionHandler for DefaultConnectionHandler {
                 } else {
                     // meh
                 }
-                flush_bytes(&bytes_to_write, &mut conn);
+                _flush_bytes(&bytes_to_write, &mut conn);
             } else {
                 bytes_to_write.extend(format!("500 Error while parsing command: {:?}\r\n",
                                               cmd_result)
                                           .bytes())
             }
+            _handle_state(&session_state.state(), &mut conn);
         }
     }
 }
 
+fn _handle_state<C: Read + Write>(state: &SmtpState, conn: &mut C) {
+    let mut waiting_for_fullstop = false;
 
+    fn is_str_equal(bytes: &[u8], string: &str) -> bool {
+        if bytes.len() != string.len() {
+            false;
+        }
+        string.as_bytes() == bytes
+    }
 
-fn flush_bytes(bytes_to_write: &Vec<u8>, conn: &mut Write) {
+    match state {
+        &SmtpState::ReadyForData => {
+            let mut data = Vec::new();
+            loop {
+                let line_res = read_line_bytes(conn);
+                if !line_res.is_ok() {
+                    // TODO handle this better please!
+                    return;
+                }
+                let line = line_res.unwrap();
+                if (!waiting_for_fullstop) {
+                    if is_str_equal(&line, "\r\n") {
+                        waiting_for_fullstop = true;
+                    } else {
+                        data.extend(line);
+                    }
+                } else {
+                    if is_str_equal(&line, ".\r\n") {
+                        return;
+                    } else {
+                        data.push('\r' as u8);
+                        data.push('\n' as u8);
+                        data.extend(line);
+                        waiting_for_fullstop = false;
+                    }
+                }
+            }
+        }
+        _ => (),
+    }
+}
+
+fn _flush_bytes(bytes_to_write: &Vec<u8>, conn: &mut Write) {
     if let Ok(_) = conn.write_all(&bytes_to_write) {
         let flush_result = conn.flush();
         if !flush_result.is_ok() {
