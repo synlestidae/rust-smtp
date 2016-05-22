@@ -2,6 +2,7 @@ use std::io::Read;
 
 use parse_util::*;
 use data::{Command, ParseError};
+use address::Address;
 
 pub fn read_command(stream: &mut Read) -> Result<Command, ParseError> {
     let line = try!(read_line(stream)).into_bytes();
@@ -48,50 +49,96 @@ pub fn parse_command(command: &[u8]) -> Result<Command, ParseError> {
                     addr
                 };
                 if line.match_next_str_ignore_case("\r\n") && line.is_at_end() {
-                    Ok(Command::MAIL_FROM(String::from_utf8(addr).unwrap()))
+                    let validating_address = _parse_address(addr);
+                    if !validating_address.is_ok() {
+                        return Err(ParseError::SyntaxError("Address is not a valid email address"));
+                    }
+                    return Ok(Command::MAIL_FROM(validating_address.unwrap()));
                 } else {
-                    Err(ParseError::SyntaxError("Invalid trailing characters on MAIL command"))
+                    return Err(ParseError::SyntaxError("Invalid trailing characters on MAIL \
+                                                        command"));
                 }
             } else {
-                Err(ParseError::SyntaxError("Invalid MAIL command"))
+                return Err(ParseError::SyntaxError("Invalid MAIL command"));
             }
         }
         Some('h') => {
             if line.match_next_bytes_ignore_case(b"ELO ") {
-                Ok(Command::HELO(line.read_line().unwrap()))
+                return Ok(Command::HELO(line.read_line().unwrap()));
             } else {
-                Err(ParseError::MalformedCommand("Expected HELO"))
+                return Err(ParseError::MalformedCommand("Expected HELO"));
             }
         }
         Some('e') => {
             if line.match_next_bytes_ignore_case(b"HLO ") {
-                Ok(Command::EHLO(line.read_line().unwrap()))
+                return Ok(Command::EHLO(line.read_line().unwrap()));
             } else {
-                Err(ParseError::MalformedCommand("Expected EHLO"))
+                return Err(ParseError::MalformedCommand("Expected EHLO"));
             }
         }
         Some('r') => {
             if line.match_next_bytes_ignore_case(b"CPT TO:") {
-                Ok(Command::RCPT_TO(line.read_line().unwrap()))
+                let email_address = try!(_read_address(&mut line));
+                return Ok(Command::RCPT_TO(email_address));
             } else {
-                Err(ParseError::MalformedCommand("Expected RCPT TO"))
+                return Err(ParseError::MalformedCommand("Expected RCPT TO"));
             }
         }
         Some('d') => {
             if line.match_next_bytes_ignore_case(b"ATA\r\n") {
-                Ok(Command::DATA)
+                return Ok(Command::DATA);
             } else {
-                Err(ParseError::MalformedCommand("Expected DATA"))
+                return Err(ParseError::MalformedCommand("Expected DATA"));
             }
         }
         Some('q') => {
             if line.match_next_bytes_ignore_case(b"UIT\r\n") {
-                Ok(Command::QUIT)
+                return Ok(Command::QUIT);
             } else {
-                Err(ParseError::MalformedCommand("Expected QUIT"))
+                return Err(ParseError::MalformedCommand("Expected QUIT"));
             }
         }
-        _ => Err(ParseError::MalformedCommand("Unknown command")),
+        _ => return Err(ParseError::MalformedCommand("Unknown command")),
+    }
+}
+
+fn _read_address(line: &mut SliceScanner) -> Result<Address, ParseError> {
+    line.pop_while(|b: u8| b == (' ' as u8));
+    let addr = if line.match_next_str_ignore_case("<") {
+        line.pop_while(|b| b == ' ' as u8);
+        let addr = line.pop_while(|b: u8| b != '>' as u8);
+        if line.is_at_end() {
+            return Err(ParseError::SyntaxError("Invalid MAIL command: Missing >"));
+        }
+        line.match_next_str_ignore_case(">");
+        addr
+    } else {
+        let addr = line.pop_while(|b: u8| b != CR && b != LF && b != (' ' as u8));
+        addr
+    };
+    if line.match_next_str_ignore_case("\r\n") && line.is_at_end() {
+        let validating_address = _parse_address(addr);
+        if !validating_address.is_ok() {
+            return Err(ParseError::SyntaxError("Address is not a valid email address"));
+        }
+        return Ok(validating_address.unwrap());
+    } else {
+        return Err(ParseError::SyntaxError("Invalid trailing characters on MAIL command"));
+    }
+}
+
+fn _parse_address(addr: Vec<u8>) -> Result<Address, ParseError> {
+    let address_string_result = String::from_utf8(addr);
+    match address_string_result {
+        Err(_) => Err(ParseError::SyntaxError("Address is not valid ASCII string")),
+        Ok(address_string) => {
+            let address_parts = address_string.split("@").collect::<Vec<_>>();
+            if address_parts.len() == 2 {
+                Ok(Address::new(&address_parts[0], &address_parts[1]))
+            } else {
+                Err(ParseError::SyntaxError("Address has invalid number of '@' characters"))
+            }
+        }
     }
 }
 
@@ -118,9 +165,9 @@ fn test_commands() {
                        Err(ParseError::SyntaxError("Invalid MAIL command: Missing >")));
 
     test_parse_command("MAIL FROM:<mneumann@ntecs.de>\r\n",
-                       Ok(Command::MAIL_FROM(String::from("mneumann@ntecs.de"))));
+                       Ok(Command::MAIL_FROM(Address::new("mneumann", "ntecs.de"))));
     test_parse_command("MAIL FROM:mneumann@ntecs.de\r\n",
-                       Ok(Command::MAIL_FROM(String::from("mneumann@ntecs.de"))));
+                       Ok(Command::MAIL_FROM(Address::new("mneumann", "ntecs.de"))));
 
 
     test_parse_command("DATA\r\n", Ok(Command::DATA));
