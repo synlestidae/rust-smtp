@@ -1,8 +1,8 @@
 use std::io::{Read, Write};
 use data::Command;
 use parser::read_command;
-use parse_util::{read_line, read_line_bytes};
-use smtp_state::{SmtpStateMachine, DefaultStateMachine, SmtpState, SmtpError};
+use parse_util::read_line_bytes;
+use smtp_state::{SmtpStateMachine, DefaultStateMachine, SmtpState};
 use payload::Payload;
 use std::sync::mpsc::Sender;
 
@@ -96,7 +96,7 @@ fn _handle_state<C: Read + Write>(state: &SmtpState, conn: &mut C) {
                     return;
                 }
                 let line = line_res.unwrap();
-                if (!waiting_for_fullstop) {
+                if !waiting_for_fullstop {
                     if is_str_equal(&line, "\r\n") {
                         waiting_for_fullstop = true;
                     } else {

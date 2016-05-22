@@ -5,7 +5,7 @@ use std::net::TcpListener;
 use std::thread::spawn;
 use std::error::Error;
 use nibbler::smtp::{DefaultConnectionHandler, ConnectionHandler};
-use std::sync::mpsc::{Sender, Receiver, channel};
+use std::sync::mpsc::channel;
 
 pub fn main() {
     log::set_logger(|max_log_level| {
@@ -18,7 +18,7 @@ pub fn main() {
 
     spawn(move || {
         loop {
-            if let Ok(message) = message_rx.recv() {
+            if let Ok(_) = message_rx.recv() {
                 println!("Got message.");
             }
         }

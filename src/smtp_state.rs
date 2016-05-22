@@ -45,11 +45,11 @@ impl SmtpStateMachine for DefaultStateMachine {
 
     fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError> {
         match (self.state, cmd) {
-            (SmtpState::Start, &Command::MAIL_FROM(ref mailfrom)) => {
+            (SmtpState::Start, &Command::MAIL_FROM(_)) => {
                 self.state = SmtpState::ReadyForRecptTo;
                 Ok(Response::new(OK, "OK"))
             }
-            (SmtpState::ReadyForRecptTo, &Command::RCPT_TO(ref mailto)) => {
+            (SmtpState::ReadyForRecptTo, &Command::RCPT_TO(_)) => {
                 self.state = SmtpState::ReadyForData;
                 Ok(Response::new(OK, "OK"))
             }
