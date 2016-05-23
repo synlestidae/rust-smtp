@@ -54,10 +54,10 @@ impl<'a> SliceScanner<'a> {
 
     pub fn match_next_bytes_ignore_case(&mut self, expected_bytes: &[u8]) -> bool {
         if self.index + expected_bytes.len() > self.data.len() {
-            println!("Expect string too loong self.index={}, expected_bytes={}, self.data={}",
-                     self.index,
-                     expected_bytes.len(),
-                     self.data.len());
+            info!("Expect string too loong self.index={}, expected_bytes={}, self.data={}",
+                  self.index,
+                  expected_bytes.len(),
+                  self.data.len());
             return false;
         }
 
@@ -118,7 +118,6 @@ pub fn read_line_bytes(stream: &mut Read) -> Result<Vec<u8>, ParseError> {
     loop {
         match stream.read_exact(&mut buf) {
             Ok(_) => {
-                println!("READ {:?} {:X}", buf[0] as char, buf[0]);
                 if buf[0] == CR {
                     s.push(CR);
                     ready_for_lf = true;

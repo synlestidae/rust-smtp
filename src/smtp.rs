@@ -57,11 +57,9 @@ impl ConnectionHandler for DefaultConnectionHandler {
         let mut session_state = DefaultStateMachine::new();
 
         loop {
-            println!("Loop-dee-loop");
             bytes_to_write.clear();
             let cmd_result = read_command(&mut conn);
             if let Ok(cmd) = cmd_result {
-                println!("Command: {:?}", cmd);
                 if let Ok(response) = session_state.transition(&cmd) {
                     bytes_to_write.extend(response.to_bytes());
                 } else {
@@ -69,7 +67,6 @@ impl ConnectionHandler for DefaultConnectionHandler {
                 }
                 _flush_bytes(&bytes_to_write, &mut conn);
             } else {
-                println!("{:?}", cmd_result);
                 bytes_to_write.extend(format!("500 Error while parsing command: {:?}\r\n",
                                               cmd_result)
                                           .bytes())
@@ -77,7 +74,7 @@ impl ConnectionHandler for DefaultConnectionHandler {
             let current_state = session_state.state();
 
             if current_state == SmtpState::Quit {
-                println!("Quittting now");
+                info!("Quitting now. Session will disconnect.");
                 let payload = session_state.extract_payload();
                 self.message_sender.send(payload);
                 return;
@@ -108,7 +105,6 @@ fn _handle_state<C: Read + Write>(state_machine: &mut SmtpStateMachine, conn: &m
                 }
                 let line = line_res.unwrap();
                 if !waiting_for_fullstop {
-                    println!("Ready for full stop");
                     data.extend(line);
                     waiting_for_fullstop = true;
                 } else {
@@ -117,7 +113,6 @@ fn _handle_state<C: Read + Write>(state_machine: &mut SmtpStateMachine, conn: &m
                         payload.data = data;
                         return;
                     } else {
-                        println!("Line was a mere {:?}", line);
                         data.extend(line);
                         waiting_for_fullstop = false;
                     }
@@ -206,7 +201,6 @@ pub mod tests {
                                                   matt@localhost\r\nRCPT TO: \
                                                   marie@localhost\r\nDATA\r\nHi \
                                                   Marie\r\n.\r\nQUIT\r\n");
-        println!("Handling...");
         handler.handle_connection(stream);
         assert!(payload_rx.try_recv().is_ok());
     }
