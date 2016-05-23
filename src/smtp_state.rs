@@ -19,6 +19,7 @@ pub enum SmtpError {
 pub const OK: u16 = 250;
 
 pub trait SmtpStateMachine {
+    fn new() -> Self;
     fn state(&self) -> SmtpState;
     fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError>;
     fn extract_payload(&mut self) -> Payload;
@@ -30,16 +31,15 @@ pub struct DefaultStateMachine {
     current_payload: Payload,
 }
 
-impl DefaultStateMachine {
-    pub fn new() -> DefaultStateMachine {
+
+impl SmtpStateMachine for DefaultStateMachine {
+    fn new() -> DefaultStateMachine {
         DefaultStateMachine {
             state: SmtpState::Start,
             current_payload: Payload::new(),
         }
     }
-}
 
-impl SmtpStateMachine for DefaultStateMachine {
     fn state(&self) -> SmtpState {
         self.state
     }

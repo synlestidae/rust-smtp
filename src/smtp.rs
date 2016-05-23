@@ -1,3 +1,4 @@
+use std::io;
 use std::io::{Read, Write};
 use data::Command;
 use parser::read_command;
@@ -5,6 +6,8 @@ use parse_util::read_line_bytes;
 use smtp_state::{SmtpStateMachine, DefaultStateMachine, SmtpState};
 use payload::Payload;
 use std::sync::mpsc::Sender;
+use smtp_error::SmtpError;
+use response::Response;
 
 pub struct DefaultConnectionHandler {
     message_sender: Sender<Payload>,
@@ -13,6 +16,50 @@ pub struct DefaultConnectionHandler {
 impl DefaultConnectionHandler {
     pub fn new(message_sender: Sender<Payload>) -> DefaultConnectionHandler {
         DefaultConnectionHandler { message_sender: message_sender }
+    }
+
+    fn _say_hello_and_start_session<C: Read + Write, S: SmtpStateMachine>
+        (&self,
+         conn: &mut C)
+         -> Result<S, SmtpError> {
+        let server_hostname = "mail.ntecs.de";
+        let server_agent = "rust-smtp";
+
+        let response_220 = Response::new(220,
+                                         &format!("220 {} ESMTP {}",
+                                                  server_hostname,
+                                                  server_agent));
+
+        if let Err(err) = conn.write_all(&response_220.to_bytes()) {
+            error!("Error while writing 220 hostname and agent response");
+            return Err(SmtpError::IOError(err));
+        }
+
+        let client_hostname = match read_command(conn) {
+            Ok(Command::EHLO(h)) => h,
+            Ok(Command::HELO(h)) => h,
+            Ok(unexpected_command) => {
+                error!("Unexpected command {:?}", unexpected_command);
+                return Err(SmtpError::UnexpectedCommand(unexpected_command,
+                                                        "Expected EHLO or HELO"));
+            }
+            Err(error) => {
+                error!("Error while reading command: {:?}. Quitting", error);
+                return Err(SmtpError::ParseError(error));
+            }
+        };
+
+        info!("Client hostname: {}", client_hostname);
+        let hello_response = Response::new(250, &format!("Hello {}", client_hostname));
+        let hello_result = conn.write_all(&hello_response.to_bytes());
+        if let Ok(_) = hello_result {
+            info!("Said Hello to {}", client_hostname);
+        } else {
+            error!("Error while writing Hello. Quitting session.");
+            return Err(SmtpError::IOError(hello_result.err().unwrap()));
+        }
+
+        Ok(S::new())
     }
 }
 
@@ -23,39 +70,14 @@ pub trait ConnectionHandler {
 impl ConnectionHandler for DefaultConnectionHandler {
     fn handle_connection<C: Read + Write>(&self, mut conn: C) {
         debug!("Got connection");
-        let server_hostname = "mail.ntecs.de";
-        let server_agent = "rust-smtp";
 
-        let response_220 = format!("220 {} ESMTP {}\r\n", server_hostname, server_agent);
-        if let Err(_) = conn.write_all(&response_220.into_bytes()) {
-            error!("Error while writing 220 hostname and agent response");
+        let setup_result = self._say_hello_and_start_session::<C, DefaultStateMachine>(&mut conn);
+        if !setup_result.is_ok() {
             return;
         }
-
-        let client_hostname = match read_command(&mut conn) {
-            Ok(Command::EHLO(h)) => h,
-            Ok(unexpected) => {
-                error!("Unexpected command {:?}", unexpected);
-                return;
-            }
-            Err(error) => {
-                error!("Error while reading command: {:?}. Quitting", error);
-                return;
-            }
-        };
-
-        info!("Client hostname: {}", client_hostname);
-
-        if let Ok(_) = conn.write_all(&format!("250 Hello {}\r\n", client_hostname).into_bytes()) {
-            info!("Saying Hello to {}", client_hostname);
-        } else {
-            error!("Error while writing Hello. Quitting session.");
-            return;
-        }
+        let mut session_state = setup_result.unwrap();
 
         let mut bytes_to_write: Vec<u8> = Vec::new();
-        let mut session_state = DefaultStateMachine::new();
-
         loop {
             bytes_to_write.clear();
             let cmd_result = read_command(&mut conn);
@@ -84,7 +106,7 @@ impl ConnectionHandler for DefaultConnectionHandler {
     }
 }
 
-fn _handle_state<C: Read + Write>(state_machine: &mut SmtpStateMachine, conn: &mut C) {
+fn _handle_state<C: Read + Write, S: SmtpStateMachine>(state_machine: &mut S, conn: &mut C) {
     let mut waiting_for_fullstop = false;
 
     fn is_str_equal(bytes: &[u8], string: &str) -> bool {

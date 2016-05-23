@@ -9,6 +9,7 @@ mod payload;
 mod parse_util;
 mod smtp_state;
 mod response;
+mod smtp_error;
 
 fn ascii_upcase(ascii: u8) -> u8 {
     if ascii >= b'a' && ascii <= b'z' {
