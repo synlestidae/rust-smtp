@@ -2,7 +2,7 @@ use data::Command;
 use response::Response;
 use payload::Payload;
 use std::mem;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum SmtpState {
     Start,
     ReadyForRecptTo,
@@ -21,19 +21,20 @@ pub const OK: u16 = 250;
 pub trait SmtpStateMachine {
     fn state(&self) -> SmtpState;
     fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError>;
-    fn extract_payload(&mut self) -> Option<Payload>;
+    fn extract_payload(&mut self) -> Payload;
+    fn get_payload_mut_ref<'a>(&'a mut self) -> &'a mut Payload;
 }
 
 pub struct DefaultStateMachine {
     state: SmtpState,
-    current_payload: Option<Payload>,
+    current_payload: Payload,
 }
 
 impl DefaultStateMachine {
     pub fn new() -> DefaultStateMachine {
         DefaultStateMachine {
             state: SmtpState::Start,
-            current_payload: None,
+            current_payload: Payload::new(),
         }
     }
 }
@@ -65,9 +66,13 @@ impl SmtpStateMachine for DefaultStateMachine {
         }
     }
 
-    fn extract_payload(&mut self) -> Option<Payload> {
-        let mut swapped_payload = None;
+    fn extract_payload(&mut self) -> Payload {
+        let mut swapped_payload = Payload::new();
         mem::swap(&mut swapped_payload, &mut self.current_payload);
         swapped_payload
+    }
+
+    fn get_payload_mut_ref<'a>(&'a mut self) -> &'a mut Payload {
+        &mut self.current_payload
     }
 }

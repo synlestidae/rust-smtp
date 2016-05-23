@@ -77,7 +77,7 @@ impl ConnectionHandler for DefaultConnectionHandler {
             let current_state = session_state.state();
 
             if current_state == SmtpState::Quit {
-                println!("Quittting now");
+                println!("Quittting now"); 
                 let payload = session_state.extract_payload();
                 self.message_sender.send(payload);
                 return;
@@ -159,19 +159,20 @@ pub mod tests {
             MockStream {
                 data_in: session_string.bytes().collect::<Vec<u8>>(),
                 index: 0,
-                data_out: Vec::new(),
+                data_out: Vec::new()
             }
         }
     }
 
     impl Read for MockStream {
-        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             if self.index >= self.data_in.len() {
                 return Ok(0);
             }
             let index_end = if self.index + buf.len() > self.data_in.len() {
                 self.data_in.len()
-            } else {
+            }
+            else {
                 self.index + buf.len()
             };
 
@@ -183,29 +184,26 @@ pub mod tests {
             self.index = index_end;
 
             Ok(self.index - old_index)
-        }
+         }
     }
 
     impl Write for MockStream {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             let response = String::from_utf8(buf.iter().map(|&b| b).collect::<Vec<u8>>()).unwrap();
             self.data_out.extend(buf.iter().clone());
             Ok(buf.len())
-        }
+         }
 
-        fn flush(&mut self) -> io::Result<()> {
+         fn flush(&mut self) -> io::Result<()> {
             Ok(())
-        }
+         }
     }
 
     #[test]
     pub fn successful_session_payload_moves() {
         let (payload_tx, payload_rx) = channel();
         let handler = DefaultConnectionHandler::new(payload_tx);
-        let mut stream = MockStream::new_session("EHLO localhost\r\nMAIL FROM: \
-                                                  matt@localhost\r\nRCPT TO: \
-                                                  marie@localhost\r\nDATA\r\nHi \
-                                                  Marie\r\n.\r\nQUIT\r\n");
+        let mut stream = MockStream::new_session("EHLO localhost\r\nMAIL FROM: matt@localhost\r\nRCPT TO: marie@localhost\r\nDATA\r\nHi Marie\r\n.\r\nQUIT\r\n");
         println!("Handling...");
         handler.handle_connection(stream);
         assert!(payload_rx.try_recv().is_ok());

@@ -107,7 +107,8 @@ impl<'a> SliceScanner<'a> {
 
 pub fn read_line(stream: &mut Read) -> Result<String, ParseError> {
     let line_bytes = try!(read_line_bytes(stream));
-    Ok(String::from_utf8(line_bytes).unwrap())
+    let line = String::from_utf8(line_bytes).unwrap();
+    Ok(line)
 }
 
 pub fn read_line_bytes(stream: &mut Read) -> Result<Vec<u8>, ParseError> {
@@ -115,14 +116,15 @@ pub fn read_line_bytes(stream: &mut Read) -> Result<Vec<u8>, ParseError> {
     let mut buf = vec![0];
     let mut ready_for_lf = false;
     loop {
-        match stream.read(&mut buf) {
+        match stream.read_exact(&mut buf) {
             Ok(_) => {
+                println!("READ {:?} {:X}", buf[0] as char, buf[0]);
                 if buf[0] == CR {
-                    s.push('\r' as u8);
+                    s.push(CR);
                     ready_for_lf = true;
                 } else if buf[0] == LF {
                     if ready_for_lf {
-                        s.push('\n' as u8);
+                        s.push(LF);
                         return Ok(s);
                     } else {
                         return Err(ParseError::InvalidLineEnding);

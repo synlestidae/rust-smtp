@@ -6,6 +6,13 @@ pub struct Payload {
 }
 
 impl Payload {
+    pub fn new() -> Payload {
+        Payload {
+            recipients: Vec::new(),
+            data: Vec::new(),
+        }
+    }
+
     pub fn add_recipient(&mut self, recipient: Address) {
         self.recipients.push(recipient);
     }
