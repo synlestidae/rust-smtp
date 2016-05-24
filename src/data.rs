@@ -9,7 +9,9 @@ pub enum Command {
     RCPT_TO(Address),
     DATA,
     QUIT,
+    VERIFY,
     RESET,
+    NOOP
 }
 
 #[allow(dead_code)]

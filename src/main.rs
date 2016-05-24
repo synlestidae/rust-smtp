@@ -19,7 +19,7 @@ pub fn main() {
     spawn(move || {
         loop {
             if let Ok(_) = message_rx.recv() {
-                println!("Got message.");
+                println!("Got a message.");
             }
         }
     });

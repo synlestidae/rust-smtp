@@ -2,6 +2,7 @@ use data::Command;
 use response::Response;
 use payload::Payload;
 use std::mem;
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum SmtpState {
     Start,
@@ -9,7 +10,7 @@ pub enum SmtpState {
     ReadyForData,
     DataInProgress,
     ReadyToProcess,
-    Quit,
+    Quit
 }
 
 pub enum SmtpError {
@@ -61,6 +62,14 @@ impl SmtpStateMachine for DefaultStateMachine {
             (_, &Command::QUIT) => {
                 self.state = SmtpState::Quit;
                 Ok(Response::new(221, "Bye"))
+            }
+            (_, &Command::RESET) => {
+                self.state = SmtpState::Start;
+                self.current_payload = Payload::new();
+                Ok(Response::new(OK, "OK"))
+            }
+            (_, &Command::NOOP) => {
+                Ok(Response::new(OK, "OK"))   
             }
             _ => Err(SmtpError::UnknownCommand),
         }

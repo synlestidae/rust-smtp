@@ -6,6 +6,7 @@ pub mod parser;
 pub mod data;
 mod address;
 mod payload;
+mod payload_handler;
 mod parse_util;
 mod smtp_state;
 mod response;

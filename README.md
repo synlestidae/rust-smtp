@@ -22,7 +22,7 @@ beginning on fully platform independent and not tied to a specific range of plat
 
 ## Todo
 
-- [ ] Successfully parse a simple SMTP session
+- [x] Successfully parse a simple SMTP session
 - [ ] Simple SMTP proxy, no delivery, no relaying
 - [ ] Support SSL
 - [ ] Support local delivery (on port 587)
