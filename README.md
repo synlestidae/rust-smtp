@@ -1,6 +1,8 @@
 rust-smtp
 =========
 
+[![Build Status](https://travis-ci.org/synlestidae/rust-smtp.svg?branch=master)](https://travis-ci.org/synlestidae/rust-smtp)
+
 SMTP (Simple Mail Transfer Protocol) implementation for Rust.
 
 ## Goal
