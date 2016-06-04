@@ -2,6 +2,7 @@
 extern crate log;
 extern crate email;
 extern crate lettre;
+extern crate rand;
 
 pub mod smtp;
 pub mod parser;
