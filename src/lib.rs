@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate log;
+extern crate email;
+extern crate lettre;
 
 pub mod smtp;
 pub mod parser;
