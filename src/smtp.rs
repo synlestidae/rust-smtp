@@ -216,7 +216,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn successful_session_payload_moves() {
+    pub fn parses_basic_session() {
         let (payload_tx, payload_rx) = channel();
         let handler = DefaultConnectionHandler::new(payload_tx);
         let mut stream = MockStream::new_session("EHLO localhost\r\nMAIL FROM: \
@@ -225,5 +225,17 @@ pub mod tests {
                                                   Marie\r\n.\r\nQUIT\r\n");
         handler.handle_connection(stream);
         assert!(payload_rx.try_recv().is_ok());
+    }
+
+    #[test]
+    pub fn parses_basic_session_2() {
+        let (payload_tx, payload_rx) = channel();
+        let handler = DefaultConnectionHandler::new(payload_tx);
+        let stream = MockStream::new_session("HELO antunovic.nz\r\nMAIL FROM: mate@antunovic.nz\r\nRCPT TO: just.mate.antunovic@gmail.com\r\nDATA\r\nHello, how are ya\r\n.\r\nQUIT\r\n");
+        handler.handle_connection(stream);
+        let payload = payload_rx.try_recv().ok().unwrap();
+        assert_eq!(Address::new("mate","antunovic.nz"), payload.sender);
+        assert_eq!(vec![Address::new("mate","antunovic.nz")], payload.recipients);
+        assert_eq!("Hello, how are ya".to_string().into_bytes(), payload.data);
     }
 }
