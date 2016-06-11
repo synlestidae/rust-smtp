@@ -29,8 +29,8 @@ pub fn main() {
             for acceptor in listener.incoming() {
                 let handler = DefaultConnectionHandler::new(message_tx.clone());
                 match acceptor {
-                    Ok(conn) => {
-                        spawn(move || handler.handle_connection(conn));
+                    Ok(mut conn) => {
+                        spawn(move || handler.handle_connection(&mut conn));
                     }
                     _ => (),
                 }

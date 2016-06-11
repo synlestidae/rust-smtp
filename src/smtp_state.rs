@@ -47,11 +47,13 @@ impl SmtpStateMachine for DefaultStateMachine {
 
     fn transition(&mut self, cmd: &Command) -> Result<Response, SmtpError> {
         match (self.state, cmd) {
-            (SmtpState::Start, &Command::MAIL_FROM(_)) => {
+            (SmtpState::Start, &Command::MAIL_FROM(ref sender)) => {
+                self.current_payload.sender = Some(sender.clone());
                 self.state = SmtpState::ReadyForRecptTo;
                 Ok(Response::new(OK, "OK"))
             }
-            (SmtpState::ReadyForRecptTo, &Command::RCPT_TO(_)) => {
+            (SmtpState::ReadyForRecptTo, &Command::RCPT_TO(ref recipient)) => {
+                self.current_payload.recipients.push(recipient.clone());
                 self.state = SmtpState::ReadyForData;
                 Ok(Response::new(OK, "OK"))
             }

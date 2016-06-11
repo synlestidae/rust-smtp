@@ -64,14 +64,14 @@ impl DefaultConnectionHandler {
 }
 
 pub trait ConnectionHandler {
-    fn handle_connection<C: Read + Write>(&self, mut conn: C);
+    fn handle_connection<C: Read + Write>(&self, mut conn: &mut C);
 }
 
 impl ConnectionHandler for DefaultConnectionHandler {
-    fn handle_connection<C: Read + Write>(&self, mut conn: C) {
+    fn handle_connection<C: Read + Write>(&self, conn: &mut C) {
         debug!("Got connection");
 
-        let setup_result = self._say_hello_and_start_session::<C, DefaultStateMachine>(&mut conn);
+        let setup_result = self._say_hello_and_start_session::<C, DefaultStateMachine>(conn);
         if !setup_result.is_ok() {
             return;
         }
@@ -80,14 +80,14 @@ impl ConnectionHandler for DefaultConnectionHandler {
         let mut bytes_to_write: Vec<u8> = Vec::new();
         loop {
             bytes_to_write.clear();
-            let cmd_result = read_command(&mut conn);
+            let cmd_result = read_command(conn);
             if let Ok(cmd) = cmd_result {
                 if let Ok(response) = session_state.transition(&cmd) {
                     bytes_to_write.extend(response.to_bytes());
                 } else {
                     // meh
                 }
-                _flush_bytes(&bytes_to_write, &mut conn);
+                _flush_bytes(&bytes_to_write, conn);
             } else {
                 bytes_to_write.extend(format!("500 Error while parsing command: {:?}\r\n",
                                               cmd_result)
@@ -101,7 +101,7 @@ impl ConnectionHandler for DefaultConnectionHandler {
                 self.message_sender.send(payload);
                 return;
             }
-            _handle_state(&mut session_state, &mut conn);
+            _handle_state(&mut session_state, conn);
         }
     }
 }
@@ -164,6 +164,7 @@ pub mod tests {
     use std::sync::mpsc::channel;
     use std::cmp::max;
     use smtp::{DefaultConnectionHandler, ConnectionHandler};
+    use address::Address;
 
     struct MockStream {
         pub data_in: Vec<u8>,
@@ -223,19 +224,23 @@ pub mod tests {
                                                   matt@localhost\r\nRCPT TO: \
                                                   marie@localhost\r\nDATA\r\nHi \
                                                   Marie\r\n.\r\nQUIT\r\n");
-        handler.handle_connection(stream);
+        handler.handle_connection(&mut stream);
         assert!(payload_rx.try_recv().is_ok());
     }
 
-    #[test]
+#[test]
     pub fn parses_basic_session_2() {
         let (payload_tx, payload_rx) = channel();
         let handler = DefaultConnectionHandler::new(payload_tx);
-        let stream = MockStream::new_session("HELO antunovic.nz\r\nMAIL FROM: mate@antunovic.nz\r\nRCPT TO: just.mate.antunovic@gmail.com\r\nDATA\r\nHello, how are ya\r\n.\r\nQUIT\r\n");
-        handler.handle_connection(stream);
+        let mut stream = MockStream::new_session("HELO antunovic.nz\r\nMAIL FROM: mate@antunovic.nz\r\nRCPT TO: just.mate.antunovic@gmail.com\r\nDATA\r\nHello, how are ya\r\n.\r\nQUIT\r\n");
+        handler.handle_connection(&mut stream);
+        let mut string_bytes = Vec::new();
+        stream.read_to_end(&mut string_bytes);
         let payload = payload_rx.try_recv().ok().unwrap();
-        assert_eq!(Address::new("mate","antunovic.nz"), payload.sender);
-        assert_eq!(vec![Address::new("mate","antunovic.nz")], payload.recipients);
-        assert_eq!("Hello, how are ya".to_string().into_bytes(), payload.data);
+        println!("Session: {}", String::from_utf8(string_bytes).unwrap());
+        assert_eq!(Some(Address::new("mate","antunovic.nz")), payload.sender);
+        assert_eq!(vec![Address::new("just.mate.antunovic","gmail.com")], payload.recipients);
+        assert_eq!("Hello, how are ya\r\n".to_string().into_bytes(), payload.data);
     }
+
 }
